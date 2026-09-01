@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Варианты иконки</title>
+<style>
+  :root{
+    --bg:#0d0f12; --surface:#13171a; --line:#232a30;
+    --mint:#5fe0ae; --amber:#ffc46b; --violet:#b9a5ff; --coral:#ff8a80;
+    --text:#e7ecef; --muted:#9faab2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px;background:var(--bg);color:var(--text);
+       font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:-.3px}
+  p.sub{margin:0 0 28px;color:var(--muted);font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px}
+  .cell{background:var(--surface);border:1px solid var(--line);border-radius:18px;
+        padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .num{position:absolute}
+  .cap{font-size:12px;line-height:1.35;color:var(--muted);text-align:center}
+  .cap b{display:block;color:var(--text);font-size:13px;margin-bottom:2px}
+  svg{display:block;border-radius:22%}
+</style>
+</head>
+<body>
+<h1>15 вариантов иконки</h1>
+<p class="sub">Все на графитовом фоне приложения, акценты — мятный / янтарный / фиолетовый (цвета лекции, практики и лабы).</p>
+<div class="grid">
+
+<!-- 1 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<rect x="20" y="28" width="56" height="9" rx="4.5" fill="#5fe0ae"/>
+<rect x="20" y="43.5" width="40" height="9" rx="4.5" fill="#ffc46b"/>
+<rect x="20" y="59" width="48" height="9" rx="4.5" fill="#b9a5ff"/></svg>
+<div class="cap"><b>1. Три ленты</b>Цвета = типы занятий</div></div>
+
+<!-- 2 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<g fill="#2c3941">
+<rect x="22" y="22" width="15" height="15" rx="4"/><rect x="40.5" y="22" width="15" height="15" rx="4"/><rect x="59" y="22" width="15" height="15" rx="4"/>
+<rect x="22" y="40.5" width="15" height="15" rx="4"/><rect x="59" y="40.5" width="15" height="15" rx="4"/>
+<rect x="22" y="59" width="15" height="15" rx="4"/><rect x="40.5" y="59" width="15" height="15" rx="4"/><rect x="59" y="59" width="15" height="15" rx="4"/></g>
+<rect x="40.5" y="40.5" width="15" height="15" rx="4" fill="#5fe0ae"/></svg>
+<div class="cap"><b>2. Сетка</b>Подсвечена текущая пара</div></div>
+
+<!-- 3 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<path d="M48 22a14 14 0 0 1 14 14v12l5 8H29l5-8V36a14 14 0 0 1 14-14z" fill="#5fe0ae"/>
+<circle cx="48" cy="63" r="5" fill="#5fe0ae"/>
+<rect x="18" y="72" width="26" height="5" rx="2.5" fill="#ffc46b"/>
+<rect x="52" y="72" width="26" height="5" rx="2.5" fill="#b9a5ff"/></svg>
+<div class="cap"><b>3. Звонок</b>Звук = полоски расписания</div></div>
+
+<!-- 4 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<rect x="18" y="24" width="60" height="48" rx="8" fill="#1b2126" stroke="#39424a" stroke-width="2"/>
+<path d="M28 60c10-16 22-22 40-24" stroke="#5fe0ae" stroke-width="6" stroke-linecap="round" fill="none"/></svg>
+<div class="cap"><b>4. Доска и мел</b>Штрих мелом</div></div>
+
+<!-- 5 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<circle cx="48" cy="48" r="26" fill="none" stroke="#2c3941" stroke-width="8"/>
+<path d="M48 22a26 26 0 0 1 22.5 13" fill="none" stroke="#5fe0ae" stroke-width="8" stroke-linecap="round"/></svg>
+<div class="cap"><b>5. Дуга времени</b>Сектор = идущая пара</div></div>
+
+<!-- 6 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<circle cx="48" cy="48" r="27" fill="#5fe0ae"/>
+<text x="48" y="63" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="38" font-weight="700" fill="#00382a">S</text></svg>
+<div class="cap"><b>6. Монограмма</b>Первая буква названия</div></div>
+
+<!-- 7 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<ellipse cx="48" cy="48" rx="28" ry="15" fill="none" stroke="#39424a" stroke-width="5" transform="rotate(-25 48 48)"/>
+<circle cx="48" cy="48" r="9" fill="#5fe0ae"/>
+<circle cx="72" cy="37" r="5" fill="#ffc46b"/></svg>
+<div class="cap"><b>7. Орбита</b>Неделя как виток</div></div>
+
+<!-- 8 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<path d="M24 22h36l14 14v38a4 4 0 0 1-4 4H24a4 4 0 0 1-4-4V26a4 4 0 0 1 4-4z" fill="#1b2126" stroke="#39424a" stroke-width="2"/>
+<path d="M60 22l14 14H60z" fill="#39424a"/>
+<rect x="30" y="48" width="34" height="6" rx="3" fill="#5fe0ae"/>
+<rect x="30" y="60" width="22" height="6" rx="3" fill="#ffc46b"/></svg>
+<div class="cap"><b>8. Страница</b>Загнутый уголок</div></div>
+
+<!-- 9 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<path d="M32 22h32v10L48 48l16 16v10H32V64l16-16-16-16z" fill="none" stroke="#39424a" stroke-width="5" stroke-linejoin="round"/>
+<path d="M48 48l14 14v10H34V62z" fill="#5fe0ae"/></svg>
+<div class="cap"><b>9. Песочные часы</b>Низ заполняется</div></div>
+
+<!-- 10 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<rect x="22" y="26" width="52" height="16" rx="6" fill="#2c3941"/>
+<rect x="20" y="46" width="56" height="16" rx="6" fill="#39424a"/>
+<rect x="18" y="66" width="60" height="16" rx="6" fill="#5fe0ae"/></svg>
+<div class="cap"><b>10. Стопка карточек</b>Как пары в списке</div></div>
+
+<!-- 11 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<circle cx="48" cy="48" r="27" fill="none" stroke="#39424a" stroke-width="5"/>
+<path d="M60 36L42 42l-6 18 18-6z" fill="#5fe0ae"/></svg>
+<div class="cap"><b>11. Компас</b>Ориентир в неделе</div></div>
+
+<!-- 12 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<path d="M20 30c10-5 18-5 28 0v40c-10-5-18-5-28 0z" fill="#1b2126" stroke="#39424a" stroke-width="2"/>
+<path d="M76 30c-10-5-18-5-28 0v40c10-5 18-5 28 0z" fill="#1b2126" stroke="#39424a" stroke-width="2"/>
+<rect x="27" y="42" width="13" height="4" rx="2" fill="#5fe0ae"/>
+<rect x="56" y="42" width="13" height="4" rx="2" fill="#ffc46b"/></svg>
+<div class="cap"><b>12. Раскрытая книга</b>Строки-полоски</div></div>
+
+<!-- 13 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<path d="M30 26h-8a4 4 0 0 0-4 4v36a4 4 0 0 0 4 4h8M66 26h8a4 4 0 0 1 4 4v36a4 4 0 0 1-4 4h-8"
+ fill="none" stroke="#39424a" stroke-width="6" stroke-linecap="round"/>
+<rect x="36" y="43" width="24" height="10" rx="5" fill="#5fe0ae"/></svg>
+<div class="cap"><b>13. Слот</b>Пара в промежутке</div></div>
+
+<!-- 14 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<rect x="16" y="28" width="64" height="40" rx="7" fill="#1b2126" stroke="#39424a" stroke-width="2"/>
+<rect x="24" y="38" width="30" height="7" rx="3.5" fill="#5fe0ae"/>
+<rect x="60" y="38" width="12" height="7" rx="3.5" fill="#5fe0ae" opacity=".45"/>
+<rect x="24" y="52" width="20" height="7" rx="3.5" fill="#ffc46b"/>
+<rect x="50" y="52" width="22" height="7" rx="3.5" fill="#ffc46b" opacity=".45"/></svg>
+<div class="cap"><b>14. Табло</b>Как табло вылетов</div></div>
+
+<!-- 15 -->
+<div class="cell">
+<svg width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#0d0f12"/>
+<g fill="#5fe0ae">
+<rect x="20" y="52" width="7" height="24" rx="3.5"/>
+<rect x="32" y="38" width="7" height="38" rx="3.5"/>
+<rect x="44" y="26" width="7" height="50" rx="3.5"/></g>
+<g fill="#39424a">
+<rect x="56" y="42" width="7" height="34" rx="3.5"/>
+<rect x="68" y="56" width="7" height="20" rx="3.5"/></g></svg>
+<div class="cap"><b>15. Ритм недели</b>Столбики = загрузка дней</div></div>
+
+</div>
+</body>
+</html>

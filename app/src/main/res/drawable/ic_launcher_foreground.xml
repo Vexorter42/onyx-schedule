@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- кольцо: полный оборот недели -->
+    <path
+        android:pathData="M54,27 A27,27 0 1,1 53.9,27"
+        android:strokeColor="#2F3A42"
+        android:strokeWidth="9"
+        android:strokeLineCap="round" />
+    <!-- дуга: сколько пары уже прошло -->
+    <path
+        android:pathData="M54,27 A27,27 0 0,1 77.4,40.5"
+        android:strokeColor="#5FE0AE"
+        android:strokeWidth="9"
+        android:strokeLineCap="round" />
+</vector>
