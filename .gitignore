@@ -9,3 +9,7 @@ captures/
 .cxx
 *.apk
 *.keystore
+
+# подпись релиза — в репозиторий не попадает
+keystore.properties
+keystore/
