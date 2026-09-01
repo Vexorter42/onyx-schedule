@@ -3,6 +3,7 @@ package com.vexorter.onyx.ui.settings
 import android.Manifest
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,10 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.LocationCity
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -66,7 +70,10 @@ import com.vexorter.onyx.AppContainer
 import com.vexorter.onyx.appContainer
 import com.vexorter.onyx.data.prefs.ThemeMode
 import com.vexorter.onyx.domain.NotificationSettings
+import com.vexorter.onyx.data.repo.UpdateRepository
 import com.vexorter.onyx.domain.Profile
+import com.vexorter.onyx.ui.update.UpdateDialog
+import com.vexorter.onyx.ui.update.UpdateViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -137,6 +144,7 @@ fun SettingsScreen(
     onChangeBranch: () -> Unit,
     onChangeGroup: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
+    updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
 ) {
     val context = LocalContext.current
     val profile by viewModel.profile.collectAsStateWithLifecycle(initialValue = Profile.EMPTY)
@@ -148,6 +156,15 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
 
     var timePickerFor by remember { mutableStateOf<TimeTarget?>(null) }
+
+    val update by updateViewModel.available.collectAsStateWithLifecycle()
+    val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
+    var showUpdate by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+
+    fun openLink(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -340,11 +357,78 @@ fun SettingsScreen(
                 )
             }
 
+            SectionTitle("О приложении")
+
+            SettingsCard {
+                ActionRow(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = if (update != null) {
+                        "Доступна версия ${update?.version}"
+                    } else {
+                        "Проверить обновления"
+                    },
+                    subtitle = when {
+                        update != null -> "Нажми, чтобы посмотреть, что изменилось"
+                        checking -> "Проверяем…"
+                        else -> "Установлена версия ${updateViewModel.currentVersion}"
+                    },
+                    onClick = {
+                        if (update != null) {
+                            showUpdate = true
+                        } else {
+                            checking = true
+                            updateViewModel.check(force = true) { ok ->
+                                checking = false
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (!ok) {
+                                            "Не удалось проверить обновления"
+                                        } else {
+                                            "Установлена последняя версия"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                )
+                Divider()
+                ActionRow(
+                    icon = Icons.Rounded.Favorite,
+                    title = "Поддержать",
+                    subtitle = "Если приложение оказалось полезным",
+                    onClick = { openLink(UpdateRepository.DONATE_URL) },
+                )
+                Divider()
+                ActionRow(
+                    icon = Icons.Rounded.Code,
+                    title = "Исходный код",
+                    subtitle = "Проект открыт на GitHub",
+                    onClick = { openLink(UpdateRepository.REPO_URL) },
+                )
+            }
+
             Text(
                 text = "Расписание берётся с сайта schedule.ruc.su. Загруженные недели хранятся " +
                     "в памяти телефона, поэтому открываются мгновенно и работают без интернета.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    update?.let { info ->
+        if (showUpdate) {
+            UpdateDialog(
+                info = info,
+                currentVersion = updateViewModel.currentVersion,
+                download = downloadState,
+                onInstall = { updateViewModel.install(info) },
+                onOpenPage = { updateViewModel.openReleasePage(info) },
+                onDismiss = {
+                    showUpdate = false
+                    updateViewModel.resetDownload()
+                },
             )
         }
     }

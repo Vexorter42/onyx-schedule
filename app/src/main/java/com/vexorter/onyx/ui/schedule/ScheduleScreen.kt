@@ -45,8 +45,11 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,6 +65,9 @@ import com.vexorter.onyx.ui.common.EmptyState
 import com.vexorter.onyx.ui.common.FullScreenLoader
 import com.vexorter.onyx.ui.common.OfflineBanner
 import com.vexorter.onyx.ui.theme.LocalLessonPalette
+import com.vexorter.onyx.ui.update.UpdateBadgeButton
+import com.vexorter.onyx.ui.update.UpdateDialog
+import com.vexorter.onyx.ui.update.UpdateViewModel
 import com.vexorter.onyx.util.WeekUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -85,8 +91,12 @@ private sealed interface ScheduleRow {
 fun ScheduleScreen(
     onOpenSettings: () -> Unit,
     viewModel: ScheduleViewModel = viewModel(factory = ScheduleViewModel.Factory),
+    updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val update by updateViewModel.available.collectAsStateWithLifecycle()
+    val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
+    var showUpdate by rememberSaveable { mutableStateOf(false) }
 
     // Раз в полминуты обновляем «сейчас», чтобы подсветка текущей пары не устаревала.
     val now by produceState(initialValue = LocalDateTime.now()) {
@@ -120,6 +130,22 @@ fun ScheduleScreen(
         if (index > 0) listState.scrollToItem(index)
     }
 
+    update?.let { info ->
+        if (showUpdate) {
+            UpdateDialog(
+                info = info,
+                currentVersion = updateViewModel.currentVersion,
+                download = downloadState,
+                onInstall = { updateViewModel.install(info) },
+                onOpenPage = { updateViewModel.openReleasePage(info) },
+                onDismiss = {
+                    showUpdate = false
+                    updateViewModel.resetDownload()
+                },
+            )
+        }
+    }
+
     Scaffold(
         topBar = {
             ScheduleHeader(
@@ -128,6 +154,8 @@ fun ScheduleScreen(
                 showTodayAction = !state.isCurrentWeek,
                 onToday = viewModel::showCurrentWeek,
                 onOpenSettings = onOpenSettings,
+                hasUpdate = update != null,
+                onUpdateClick = { showUpdate = true },
             )
         }
     ) { innerPadding ->
@@ -263,6 +291,8 @@ private fun ScheduleHeader(
     showTodayAction: Boolean,
     onToday: () -> Unit,
     onOpenSettings: () -> Unit,
+    hasUpdate: Boolean,
+    onUpdateClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -287,6 +317,10 @@ private fun ScheduleHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        if (hasUpdate) {
+            UpdateBadgeButton(onClick = onUpdateClick)
+            Spacer(Modifier.width(8.dp))
         }
         if (showTodayAction) {
             RoundIconButton(Icons.Rounded.Today, "К текущей неделе", onToday)

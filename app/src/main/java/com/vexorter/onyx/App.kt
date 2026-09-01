@@ -8,6 +8,7 @@ import com.vexorter.onyx.data.remote.NetworkModule
 import com.vexorter.onyx.data.remote.ScheduleApi
 import com.vexorter.onyx.data.repo.CatalogRepository
 import com.vexorter.onyx.data.repo.ScheduleRepository
+import com.vexorter.onyx.data.repo.UpdateRepository
 import com.vexorter.onyx.notifications.AlarmScheduler
 import com.vexorter.onyx.notifications.Notifier
 import com.vexorter.onyx.notifications.ScheduleCheckWorker
@@ -22,14 +23,15 @@ class AppContainer(context: Context) {
 
     private val appContext = context.applicationContext
     private val database by lazy { AppDatabase.build(appContext) }
-    private val api by lazy {
-        ScheduleApi(NetworkModule.okHttpClient(appContext), NetworkModule.json())
-    }
+    private val httpClient by lazy { NetworkModule.okHttpClient(appContext) }
+    private val json by lazy { NetworkModule.json() }
+    private val api by lazy { ScheduleApi(httpClient, json) }
 
     val prefs by lazy { UserPrefs(appContext) }
     val networkMonitor by lazy { NetworkMonitor(appContext) }
     val catalogRepository by lazy { CatalogRepository(api, database.catalogDao()) }
     val scheduleRepository by lazy { ScheduleRepository(api, database.scheduleDao()) }
+    val updateRepository by lazy { UpdateRepository(appContext, httpClient, json) }
     val notifier by lazy { Notifier(appContext) }
     val alarmScheduler by lazy { AlarmScheduler(appContext, this) }
 }
@@ -48,6 +50,9 @@ class App : Application() {
         container.notifier.ensureChannels()
         ScheduleCheckWorker.enqueue(this)
         scope.launch { container.alarmScheduler.rescheduleAll() }
+        // Проверяем обновления при каждом запуске: приложение раздаётся мимо Play,
+        // само оно не обновится.
+        scope.launch { container.updateRepository.check() }
     }
 }
 
