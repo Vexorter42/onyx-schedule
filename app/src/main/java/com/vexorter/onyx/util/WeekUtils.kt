@@ -32,6 +32,10 @@ object WeekUtils {
 
     fun currentWeekStart(): LocalDate = mondayOf(LocalDate.now())
 
+    fun today(zone: ZoneId): LocalDate = LocalDate.now(zone)
+
+    fun currentWeekStart(zone: ZoneId): LocalDate = mondayOf(LocalDate.now(zone))
+
     fun toApiDate(date: LocalDate): String = date.format(API_DATE)
 
     fun parseLessonDate(raw: String): LocalDate? = runCatching {
@@ -56,13 +60,17 @@ object WeekUtils {
         }
     }
 
-    fun isCurrentWeek(weekStart: LocalDate): Boolean = weekStart == currentWeekStart()
+    fun isCurrentWeek(weekStart: LocalDate, zone: ZoneId): Boolean =
+        weekStart == currentWeekStart(zone)
 
-    fun relativeWeekLabel(weekStart: LocalDate): String? = when (weekStart) {
-        currentWeekStart() -> "Текущая неделя"
-        currentWeekStart().plusWeeks(1) -> "Следующая неделя"
-        currentWeekStart().minusWeeks(1) -> "Прошлая неделя"
-        else -> null
+    fun relativeWeekLabel(weekStart: LocalDate, zone: ZoneId): String? {
+        val current = currentWeekStart(zone)
+        return when (weekStart) {
+            current -> "Текущая неделя"
+            current.plusWeeks(1) -> "Следующая неделя"
+            current.minusWeeks(1) -> "Прошлая неделя"
+            else -> null
+        }
     }
 
     /** «сегодня в 14:32», «вчера в 09:10», «29 августа в 18:05» */

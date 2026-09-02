@@ -8,8 +8,11 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Favorite
@@ -50,13 +54,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -67,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.vexorter.onyx.AppContainer
+import com.vexorter.onyx.R
 import com.vexorter.onyx.appContainer
 import com.vexorter.onyx.data.prefs.ThemeMode
 import com.vexorter.onyx.domain.NotificationSettings
@@ -74,6 +86,7 @@ import com.vexorter.onyx.data.repo.UpdateRepository
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.ui.update.UpdateDialog
 import com.vexorter.onyx.ui.update.UpdateViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -96,6 +109,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun canScheduleExactAlarms(): Boolean = container.alarmScheduler.canScheduleExact()
+
+    val funUnlocked = container.prefs.funUnlocked
+
+    fun unlockFun() {
+        viewModelScope.launch { container.prefs.unlockFun() }
+    }
 
     /**
      * Отправляет пробное уведомление тем же кодом, что и настоящие напоминания —
@@ -143,6 +162,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onChangeBranch: () -> Unit,
     onChangeGroup: () -> Unit,
+    onOpenFun: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
     updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
 ) {
@@ -161,6 +181,18 @@ fun SettingsScreen(
     val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
     var showUpdate by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
+
+    val funUnlocked by viewModel.funUnlocked.collectAsStateWithLifecycle(initialValue = false)
+    var iconTaps by remember { mutableIntStateOf(0) }
+
+    // Счётчик сбрасывается, если перестали жать: иначе случайные тапы за день
+    // однажды сложатся в девять.
+    LaunchedEffect(iconTaps) {
+        if (iconTaps in 1..8) {
+            delay(2_000)
+            iconTaps = 0
+        }
+    }
 
     fun openLink(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
@@ -206,6 +238,30 @@ fun SettingsScreen(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            AppHeader(
+                version = updateViewModel.currentVersion,
+                onIconClick = {
+                    if (funUnlocked) return@AppHeader
+                    iconTaps += 1
+                    when {
+                        iconTaps >= 9 -> {
+                            viewModel.unlockFun()
+                            iconTaps = 0
+                            scope.launch {
+                                // Иначе обратный отсчёт висит в очереди и заслоняет итог.
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar("Режим «Веселье» открыт")
+                            }
+                        }
+
+                        iconTaps >= 4 -> scope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar("Ещё ${9 - iconTaps}…")
+                        }
+                    }
+                },
+            )
+
             SectionTitle("Профиль")
 
             SettingsCard {
@@ -277,7 +333,7 @@ fun SettingsScreen(
                 Divider()
                 SwitchRow(
                     title = "Изменения в расписании",
-                    subtitle = "Раз в день сверяем расписание и сообщаем, что поменялось",
+                    subtitle = "Раз в час сверяем расписание и сообщаем, что поменялось",
                     checked = notifications.scheduleChanges,
                     onCheckedChange = { enabled ->
                         requestPermissionIfNeeded(enabled)
@@ -406,6 +462,15 @@ fun SettingsScreen(
                     subtitle = "Проект открыт на GitHub",
                     onClick = { openLink(UpdateRepository.REPO_URL) },
                 )
+                if (funUnlocked) {
+                    Divider()
+                    ActionRow(
+                        icon = Icons.Rounded.Celebration,
+                        title = "Веселье",
+                        subtitle = "Скрытый раздел, который ты нашёл",
+                        onClick = onOpenFun,
+                    )
+                }
             }
 
             Text(
@@ -540,6 +605,53 @@ private fun ExactAlarmWarning(onOpenSettings: () -> Unit) {
                 Text("Разрешить")
             }
         }
+    }
+}
+
+/** Шапка настроек: иконка, название и пара слов о приложении. */
+@Composable
+private fun AppHeader(version: String, onIconClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color(0xFF0D0F12))
+                .clickable(onClick = onIconClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = "Иконка Onyx",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.5f),
+            )
+        }
+
+        Text(
+            text = "Onyx",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            text = "Расписание РУК · версия $version",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "Пары любой группы и любого филиала. Работает офлайн, " +
+                "без рекламы и регистрации.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 10.dp, start = 16.dp, end = 16.dp),
+        )
     }
 }
 

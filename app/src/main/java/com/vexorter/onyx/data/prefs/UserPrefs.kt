@@ -17,6 +17,9 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** Акцент интерфейса. Меняется в скрытом режиме «Веселье». */
+enum class AccentColor { MINT, AMBER, VIOLET, CORAL }
+
 /** Профиль пользователя и настройки оформления. Выбирается один раз и живёт между запусками. */
 class UserPrefs(private val context: Context) {
 
@@ -36,6 +39,9 @@ class UserPrefs(private val context: Context) {
         val NOTIFY_CHANGES = booleanPreferencesKey("notify_changes")
         val NOTIFY_EVENING = booleanPreferencesKey("notify_evening")
         val NOTIFY_EVENING_AT = intPreferencesKey("notify_evening_at")
+
+        val FUN_UNLOCKED = booleanPreferencesKey("fun_unlocked")
+        val ACCENT = stringPreferencesKey("accent_color")
     }
 
     val profile: Flow<Profile> = context.dataStore.data.map { prefs ->
@@ -119,6 +125,23 @@ class UserPrefs(private val context: Context) {
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { prefs -> prefs[Keys.THEME] = mode.name }
+    }
+
+    val funUnlocked: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.FUN_UNLOCKED] ?: false
+    }
+
+    suspend fun unlockFun() {
+        context.dataStore.edit { prefs -> prefs[Keys.FUN_UNLOCKED] = true }
+    }
+
+    val accent: Flow<AccentColor> = context.dataStore.data.map { prefs ->
+        runCatching { AccentColor.valueOf(prefs[Keys.ACCENT] ?: AccentColor.MINT.name) }
+            .getOrDefault(AccentColor.MINT)
+    }
+
+    suspend fun setAccent(accent: AccentColor) {
+        context.dataStore.edit { prefs -> prefs[Keys.ACCENT] = accent.name }
     }
 
     suspend fun clearProfile() {

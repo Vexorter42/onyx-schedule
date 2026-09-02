@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.vexorter.onyx.appContainer
+import com.vexorter.onyx.util.BranchTimeZones
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,9 +37,10 @@ class AlarmReceiver : BroadcastReceiver() {
         val settings = container.prefs.notifications.first()
 
         if (profile.isComplete) {
+            val zone = BranchTimeZones.zoneOf(profile.branchGuid)
             when (action) {
                 ACTION_MORNING -> if (settings.morningSummary) {
-                    val today = LocalDate.now()
+                    val today = LocalDate.now(zone)
                     notifier.showDaySummary(
                         date = today,
                         lessons = container.scheduleRepository.lessonsOn(profile.groupGuid, today),
@@ -47,7 +49,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
 
                 ACTION_EVENING -> if (settings.eveningPreview) {
-                    val tomorrow = LocalDate.now().plusDays(1)
+                    val tomorrow = LocalDate.now(zone).plusDays(1)
                     notifier.showDaySummary(
                         date = tomorrow,
                         lessons = container.scheduleRepository.lessonsOn(profile.groupGuid, tomorrow),

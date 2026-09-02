@@ -13,13 +13,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.vexorter.onyx.data.prefs.AccentColor
 import com.vexorter.onyx.data.prefs.ThemeMode
 
-private val DarkColors = darkColorScheme(
-    primary = Mint,
-    onPrimary = MintDeep,
-    primaryContainer = MintContainer,
-    onPrimaryContainer = MintOnContainer,
+private fun darkColors(accent: AccentColor) = darkColorScheme(
+    primary = accent.dark,
+    onPrimary = accent.darkOn,
+    primaryContainer = accent.darkContainer,
+    onPrimaryContainer = accent.dark,
     secondary = Amber,
     onSecondary = AmberDeep,
     secondaryContainer = AmberDeep,
@@ -45,11 +46,11 @@ private val DarkColors = darkColorScheme(
     outlineVariant = DarkOutlineVariant,
 )
 
-private val LightColors = lightColorScheme(
-    primary = MintPressed,
+private fun lightColors(accent: AccentColor) = lightColorScheme(
+    primary = accent.light,
     onPrimary = Color.White,
-    primaryContainer = MintLight,
-    onPrimaryContainer = MintDeep,
+    primaryContainer = accent.lightContainer,
+    onPrimaryContainer = accent.darkOn,
     secondary = AmberPressed,
     onSecondary = Color.White,
     secondaryContainer = AmberLight,
@@ -88,9 +89,50 @@ val LocalLessonPalette = staticCompositionLocalOf {
     LessonPalette(Mint, Amber, Violet, Coral, DarkOutline)
 }
 
+private val AccentColor.dark: Color
+    get() = when (this) {
+        AccentColor.MINT -> Mint
+        AccentColor.AMBER -> Amber
+        AccentColor.VIOLET -> Violet
+        AccentColor.CORAL -> Coral
+    }
+
+private val AccentColor.darkOn: Color
+    get() = when (this) {
+        AccentColor.MINT -> MintDeep
+        AccentColor.AMBER -> AmberDeep
+        AccentColor.VIOLET -> VioletDeep
+        AccentColor.CORAL -> CoralDeep
+    }
+
+private val AccentColor.darkContainer: Color
+    get() = when (this) {
+        AccentColor.MINT -> MintContainer
+        AccentColor.AMBER -> AmberDeep
+        AccentColor.VIOLET -> VioletDeep
+        AccentColor.CORAL -> CoralDeep
+    }
+
+private val AccentColor.light: Color
+    get() = when (this) {
+        AccentColor.MINT -> MintPressed
+        AccentColor.AMBER -> AmberPressed
+        AccentColor.VIOLET -> VioletPressed
+        AccentColor.CORAL -> CoralPressed
+    }
+
+private val AccentColor.lightContainer: Color
+    get() = when (this) {
+        AccentColor.MINT -> MintLight
+        AccentColor.AMBER -> AmberLight
+        AccentColor.VIOLET -> VioletLight
+        AccentColor.CORAL -> CoralLight
+    }
+
 @Composable
 fun RucScheduleTheme(
     themeMode: ThemeMode,
+    accent: AccentColor = AccentColor.MINT,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -99,7 +141,7 @@ fun RucScheduleTheme(
         ThemeMode.DARK -> true
     }
 
-    val colorScheme = if (darkTheme) DarkColors else LightColors
+    val colorScheme = if (darkTheme) darkColors(accent) else lightColors(accent)
 
     val lessonPalette = if (darkTheme) {
         LessonPalette(Mint, Amber, Violet, Coral, DarkOnSurfaceVariant)

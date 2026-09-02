@@ -11,6 +11,7 @@ import com.vexorter.onyx.appContainer
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.domain.SyncResult
 import com.vexorter.onyx.domain.WeekSchedule
+import com.vexorter.onyx.util.BranchTimeZones
 import com.vexorter.onyx.util.WeekUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 
 data class ScheduleUiState(
     val profile: Profile = Profile.EMPTY,
@@ -40,8 +42,11 @@ data class ScheduleUiState(
     /** Сеть есть, но сервер отказал по стране — подсказка нужна другая. */
     val geoBlocked: Boolean = false,
 ) {
+    /** Пары живут во времени филиала, а не телефона. */
+    val zone: ZoneId get() = BranchTimeZones.zoneOf(profile.branchGuid)
+
     val isFirstLoad: Boolean get() = week == null && fatalError == null
-    val isCurrentWeek: Boolean get() = WeekUtils.isCurrentWeek(weekStart)
+    val isCurrentWeek: Boolean get() = WeekUtils.isCurrentWeek(weekStart, zone)
 }
 
 private data class WeekKey(val profile: Profile, val weekStart: LocalDate)
@@ -163,8 +168,11 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun showCurrentWeek() {
-        weekStart.value = WeekUtils.currentWeekStart()
+        weekStart.value = WeekUtils.currentWeekStart(zoneOfProfile())
     }
+
+    private fun zoneOfProfile(): ZoneId =
+        BranchTimeZones.zoneOf(state.value.profile.branchGuid)
 
     fun dismissWarning() {
         syncError.value = null

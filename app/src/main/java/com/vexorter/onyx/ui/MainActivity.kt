@@ -17,9 +17,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.vexorter.onyx.appContainer
+import com.vexorter.onyx.data.prefs.AccentColor
 import com.vexorter.onyx.data.prefs.ThemeMode
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.ui.common.FullScreenLoader
+import com.vexorter.onyx.ui.funmode.FunScreen
 import com.vexorter.onyx.ui.schedule.ScheduleScreen
 import com.vexorter.onyx.ui.settings.SettingsScreen
 import com.vexorter.onyx.ui.setup.BranchPickerScreen
@@ -33,6 +35,7 @@ private object Routes {
     const val SETUP_BRANCH = "setup/branch"
     const val SETUP_YEAR = "setup/year"
     const val SETUP_GROUP = "setup/group"
+    const val FUN = "fun"
 }
 
 class MainActivity : ComponentActivity() {
@@ -49,6 +52,8 @@ private fun RucScheduleApp() {
     val container = LocalContext.current.appContainer
     val themeMode by container.prefs.themeMode
         .collectAsStateWithLifecycle(initialValue = ThemeMode.DARK)
+    val accent by container.prefs.accent
+        .collectAsStateWithLifecycle(initialValue = AccentColor.MINT)
 
     // Пока профиль не прочитан из хранилища, держим заставку — иначе на долю секунды
     // мелькнёт экран первичной настройки у пользователя, который группу давно выбрал.
@@ -56,7 +61,7 @@ private fun RucScheduleApp() {
         container.prefs.profile.collect { value = it }
     }
 
-    RucScheduleTheme(themeMode = themeMode) {
+    RucScheduleTheme(themeMode = themeMode, accent = accent) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
@@ -120,7 +125,12 @@ private fun AppNavHost(startWithSetup: Boolean) {
                 onBack = { navController.popBackStack() },
                 onChangeBranch = { navController.navigate(Routes.SETUP_BRANCH) },
                 onChangeGroup = { navController.navigate(Routes.SETUP_GROUP) },
+                onOpenFun = { navController.navigate(Routes.FUN) },
             )
+        }
+
+        composable(Routes.FUN) {
+            FunScreen(onBack = { navController.popBackStack() })
         }
     }
 }

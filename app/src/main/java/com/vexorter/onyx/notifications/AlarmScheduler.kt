@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import com.vexorter.onyx.AppContainer
 import com.vexorter.onyx.domain.NotificationSettings
+import com.vexorter.onyx.util.BranchTimeZones
 import com.vexorter.onyx.util.WeekUtils
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
@@ -34,26 +35,29 @@ class AlarmScheduler(
         val profile = container.prefs.profile.first()
         if (!settings.anyEnabled || !profile.isComplete) return
 
-        val now = LocalDateTime.now()
+        // Пары заданы во времени филиала — в нём же считаем, когда звонить.
+        val zone = BranchTimeZones.zoneOf(profile.branchGuid)
+        val now = LocalDateTime.now(zone)
 
         if (settings.morningSummary) {
-            scheduleDaily(REQUEST_MORNING, AlarmReceiver.ACTION_MORNING, settings.morningAtMinutes, now)
+            scheduleDaily(REQUEST_MORNING, AlarmReceiver.ACTION_MORNING, settings.morningAtMinutes, now, zone)
         }
         if (settings.eveningPreview) {
-            scheduleDaily(REQUEST_EVENING, AlarmReceiver.ACTION_EVENING, settings.eveningAtMinutes, now)
+            scheduleDaily(REQUEST_EVENING, AlarmReceiver.ACTION_EVENING, settings.eveningAtMinutes, now, zone)
         }
         if (settings.beforeLesson) {
-            scheduleLessonReminders(settings, profile.groupGuid, now)
+            scheduleLessonReminders(settings, profile.groupGuid, now, zone)
         }
 
         // Подстраховка: раз в сутки после полуночи пересобираем план на новый день.
-        scheduleDaily(REQUEST_REPLAN, AlarmReceiver.ACTION_REPLAN, 5, now)
+        scheduleDaily(REQUEST_REPLAN, AlarmReceiver.ACTION_REPLAN, 5, now, zone)
     }
 
     private suspend fun scheduleLessonReminders(
         settings: NotificationSettings,
         groupGuid: String,
         now: LocalDateTime,
+        zone: ZoneId,
     ) {
         val dates = listOf(now.toLocalDate(), now.toLocalDate().plusDays(1))
         var slot = 0
@@ -75,6 +79,7 @@ class AlarmScheduler(
                             minutesBefore = settings.beforeLessonMinutes,
                         ),
                         at = fireAt,
+                        zone = zone,
                         exact = true,
                     )
                     slot++
@@ -88,13 +93,15 @@ class AlarmScheduler(
         action: String,
         atMinutes: Int,
         now: LocalDateTime,
+        zone: ZoneId,
     ) {
-        val today = LocalDate.now().atStartOfDay().plusMinutes(atMinutes.toLong())
+        val today = LocalDate.now(zone).atStartOfDay().plusMinutes(atMinutes.toLong())
         val fireAt = if (today.isAfter(now)) today else today.plusDays(1)
         schedule(
             requestCode = requestCode,
             intent = AlarmReceiver.simpleIntent(context, action),
             at = fireAt,
+            zone = zone,
             exact = false,
         )
     }
@@ -103,6 +110,7 @@ class AlarmScheduler(
         requestCode: Int,
         intent: Intent,
         at: LocalDateTime,
+        zone: ZoneId,
         exact: Boolean,
     ) {
         val manager = alarmManager ?: return
@@ -112,7 +120,7 @@ class AlarmScheduler(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val triggerAt = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val triggerAt = at.atZone(zone).toInstant().toEpochMilli()
 
         // Точные будильники нужны только для «за N минут до пары»; если система их
         // не разрешила, откатываемся на неточные — лучше сдвинутое напоминание, чем никакого.

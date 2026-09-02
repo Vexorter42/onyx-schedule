@@ -1,5 +1,7 @@
 package com.vexorter.onyx.ui.schedule
 
+import android.content.Intent
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,6 +56,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +81,7 @@ import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /** Идущая прямо сейчас пара: доля пройденного и сколько минут осталось. */
 private data class Ongoing(val progress: Float, val minutesLeft: Int)
@@ -105,10 +110,12 @@ fun ScheduleScreen(
     val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
     var showUpdate by rememberSaveable { mutableStateOf(false) }
 
-    // Раз в полминуты обновляем «сейчас», чтобы подсветка текущей пары не устаревала.
-    val now by produceState(initialValue = LocalDateTime.now()) {
+    // «Сейчас» считаем во времени филиала: у заочника из другого пояса иначе
+    // подсветилась бы не та пара. Раз в полминуты обновляем, чтобы не устаревало.
+    val zone = state.zone
+    val now by produceState(initialValue = LocalDateTime.now(zone), zone) {
         while (true) {
-            value = LocalDateTime.now()
+            value = LocalDateTime.now(zone)
             delay(30_000)
         }
     }
@@ -121,6 +128,7 @@ fun ScheduleScreen(
     val rows = remember(visibleDays, now) { buildRows(visibleDays, now) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val visibleDay by remember(rows) {
         derivedStateOf {
@@ -163,6 +171,21 @@ fun ScheduleScreen(
                 onOpenSettings = onOpenSettings,
                 hasUpdate = update != null,
                 onUpdateClick = { showUpdate = true },
+                canShare = (state.week?.lessonCount ?: 0) > 0,
+                onShare = {
+                    val text = buildShareText(
+                        groupName = state.profile.groupName,
+                        weekStart = state.weekStart,
+                        days = visibleDays,
+                    )
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    runCatching {
+                        context.startActivity(Intent.createChooser(intent, "Поделиться расписанием"))
+                    }
+                },
             )
         }
     ) { innerPadding ->
@@ -174,6 +197,7 @@ fun ScheduleScreen(
         ) {
             WeekSwitcher(
                 weekStart = state.weekStart,
+                zone = zone,
                 onPrevious = viewModel::showPreviousWeek,
                 onNext = viewModel::showNextWeek,
             )
@@ -261,6 +285,28 @@ fun ScheduleScreen(
     }
 }
 
+/** Текст недели для отправки в чат: без разметки, чтобы читалось где угодно. */
+private fun buildShareText(
+    groupName: String,
+    weekStart: java.time.LocalDate,
+    days: List<DaySchedule>,
+): String = buildString {
+    append(groupName.ifBlank { "Расписание" })
+    append(" · ")
+    appendLine(WeekUtils.weekRangeTitle(weekStart))
+
+    days.filter { it.lessons.isNotEmpty() }.forEach { day ->
+        appendLine()
+        appendLine("${WeekUtils.weekDayName(day.date)}, ${WeekUtils.dayAndMonth(day.date)}")
+        day.lessons.forEach { lesson ->
+            append("${lesson.timeStart} — ${lesson.timeEnd}  ${lesson.discipline}")
+            if (lesson.type.isNotBlank()) append(" (${lesson.type})")
+            if (lesson.classroom.isNotBlank()) append(", ауд. ${lesson.classroom}")
+            appendLine()
+        }
+    }
+}.trim()
+
 private fun rowKey(row: ScheduleRow, index: Int): String = when (row) {
     is ScheduleRow.Header -> "h_${row.day.date}"
     is ScheduleRow.EmptyDay -> "e_${row.date}"
@@ -310,6 +356,8 @@ private fun ScheduleHeader(
     onOpenSettings: () -> Unit,
     hasUpdate: Boolean,
     onUpdateClick: () -> Unit,
+    canShare: Boolean,
+    onShare: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -343,6 +391,10 @@ private fun ScheduleHeader(
             RoundIconButton(Icons.Rounded.Today, "К текущей неделе", onToday)
             Spacer(Modifier.width(8.dp))
         }
+        if (canShare) {
+            RoundIconButton(Icons.Rounded.Share, "Поделиться неделей", onShare)
+            Spacer(Modifier.width(8.dp))
+        }
         RoundIconButton(Icons.Rounded.Settings, "Настройки", onOpenSettings)
     }
 }
@@ -369,6 +421,7 @@ private fun RoundIconButton(icon: ImageVector, description: String, onClick: () 
 @Composable
 private fun WeekSwitcher(
     weekStart: LocalDate,
+    zone: ZoneId,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -392,7 +445,7 @@ private fun WeekSwitcher(
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = WeekUtils.relativeWeekLabel(weekStart) ?: "${weekStart.year}",
+                text = WeekUtils.relativeWeekLabel(weekStart, zone) ?: "${weekStart.year}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
