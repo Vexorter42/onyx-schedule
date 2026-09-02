@@ -37,6 +37,8 @@ data class ScheduleUiState(
     val staleWarning: String? = null,
     /** Ни кэша, ни сети — показываем экран ошибки. */
     val fatalError: String? = null,
+    /** Сеть есть, но сервер отказал по стране — подсказка нужна другая. */
+    val geoBlocked: Boolean = false,
 ) {
     val isFirstLoad: Boolean get() = week == null && fatalError == null
     val isCurrentWeek: Boolean get() = WeekUtils.isCurrentWeek(weekStart)
@@ -78,6 +80,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             isOnline = online,
             staleWarning = error?.takeIf { week != null }?.message,
             fatalError = error?.takeIf { week == null }?.message,
+            geoBlocked = error?.geoBlocked == true,
         )
     }.stateIn(
         scope = viewModelScope,

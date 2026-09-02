@@ -26,6 +26,7 @@ data class PickerUiState<T>(
     val items: List<T> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
+    val geoBlocked: Boolean = false,
 )
 
 class BranchPickerViewModel(private val container: AppContainer) : ViewModel() {
@@ -49,7 +50,11 @@ class BranchPickerViewModel(private val container: AppContainer) : ViewModel() {
             when (val result = container.catalogRepository.refreshBranches()) {
                 is SyncResult.Success -> _state.update { it.copy(isLoading = false, error = null) }
                 is SyncResult.Error -> _state.update {
-                    it.copy(isLoading = false, error = if (hadCache) null else result.message)
+                    it.copy(
+                        isLoading = false,
+                        error = if (hadCache) null else result.message,
+                        geoBlocked = result.geoBlocked,
+                    )
                 }
             }
         }
@@ -95,7 +100,11 @@ class YearPickerViewModel(private val container: AppContainer) : ViewModel() {
             when (val result = container.catalogRepository.refreshYears()) {
                 is SyncResult.Success -> _state.update { it.copy(isLoading = false, error = null) }
                 is SyncResult.Error -> _state.update {
-                    it.copy(isLoading = false, error = if (hadCache) null else result.message)
+                    it.copy(
+                        isLoading = false,
+                        error = if (hadCache) null else result.message,
+                        geoBlocked = result.geoBlocked,
+                    )
                 }
             }
         }
@@ -156,7 +165,11 @@ class GroupPickerViewModel(private val container: AppContainer) : ViewModel() {
             when (result) {
                 is SyncResult.Success -> _state.update { it.copy(isLoading = false, error = null) }
                 is SyncResult.Error -> _state.update {
-                    it.copy(isLoading = false, error = if (hadCache) null else result.message)
+                    it.copy(
+                        isLoading = false,
+                        error = if (hadCache) null else result.message,
+                        geoBlocked = result.geoBlocked,
+                    )
                 }
             }
         }

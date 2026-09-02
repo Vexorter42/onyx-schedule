@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
@@ -205,9 +206,19 @@ fun ScheduleScreen(
             ) {
                 when {
                     state.fatalError != null -> EmptyState(
-                        icon = Icons.Outlined.WifiOff,
-                        title = "Расписание не загружено",
-                        description = "${state.fatalError}.\nЭту неделю нужно один раз открыть с интернетом — дальше она будет доступна офлайн.",
+                        icon = if (state.geoBlocked) Icons.Outlined.Public else Icons.Outlined.WifiOff,
+                        title = if (state.geoBlocked) {
+                            "Сервер не пускает с этого адреса"
+                        } else {
+                            "Расписание не загружено"
+                        },
+                        description = if (state.geoBlocked) {
+                            "Сайт расписания открыт только для российских адресов. " +
+                                "Включи VPN с российским IP и попробуй снова.\n\n" +
+                                "Уже загруженные недели при этом продолжают открываться офлайн."
+                        } else {
+                            "${state.fatalError}.\nЭту неделю нужно один раз открыть с интернетом — дальше она будет доступна офлайн."
+                        },
                         actionLabel = "Повторить",
                         onAction = viewModel::refresh,
                     )

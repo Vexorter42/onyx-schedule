@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +55,7 @@ private fun PickerScaffold(
     isLoading: Boolean,
     error: String?,
     isEmpty: Boolean,
+    geoBlocked: Boolean,
     onRetry: () -> Unit,
     listContent: LazyListScope.() -> Unit,
 ) {
@@ -97,9 +99,18 @@ private fun PickerScaffold(
 
             when {
                 error != null -> EmptyState(
-                    icon = Icons.Outlined.WifiOff,
-                    title = "Не удалось загрузить список",
-                    description = "$error.\nПодключитесь к интернету один раз — список сохранится в приложении и дальше будет открываться офлайн.",
+                    icon = if (geoBlocked) Icons.Outlined.Public else Icons.Outlined.WifiOff,
+                    title = if (geoBlocked) {
+                        "Сервер не пускает с этого адреса"
+                    } else {
+                        "Не удалось загрузить список"
+                    },
+                    description = if (geoBlocked) {
+                        "Сайт расписания открыт только для российских адресов. " +
+                            "Включи VPN с российским IP и попробуй снова."
+                    } else {
+                        "$error.\nПодключитесь к интернету один раз — список сохранится в приложении и дальше будет открываться офлайн."
+                    },
                     actionLabel = "Повторить",
                     onAction = onRetry,
                 )
@@ -198,6 +209,7 @@ fun BranchPickerScreen(
         isLoading = state.isLoading && state.items.isEmpty(),
         error = state.error,
         isEmpty = filtered.isEmpty() && !state.isLoading,
+        geoBlocked = state.geoBlocked,
         onRetry = { viewModel.refresh() },
     ) {
         items(filtered, key = { it.guid }) { branch ->
@@ -232,6 +244,7 @@ fun YearPickerScreen(
         isLoading = state.isLoading && state.items.isEmpty(),
         error = state.error,
         isEmpty = filtered.isEmpty() && !state.isLoading,
+        geoBlocked = state.geoBlocked,
         onRetry = { viewModel.refresh() },
     ) {
         items(filtered, key = { it.guid }) { year ->
@@ -273,6 +286,7 @@ fun GroupPickerScreen(
         isLoading = state.isLoading && state.items.isEmpty(),
         error = state.error,
         isEmpty = grouped.isEmpty() && !state.isLoading,
+        geoBlocked = state.geoBlocked,
         onRetry = { viewModel.refresh() },
     ) {
         grouped.forEach { (category, groups) ->

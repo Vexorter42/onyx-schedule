@@ -1,6 +1,7 @@
 package com.vexorter.onyx.data.repo
 
 import com.vexorter.onyx.data.remote.ApiException
+import com.vexorter.onyx.data.remote.GeoBlockedException
 import com.vexorter.onyx.domain.SyncResult
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
@@ -14,6 +15,12 @@ internal suspend fun runSync(block: suspend () -> Unit): SyncResult =
         SyncResult.Success
     } catch (e: CancellationException) {
         throw e
+    } catch (e: GeoBlockedException) {
+        SyncResult.Error(
+            message = "Сервер расписания не пускает с этого адреса",
+            offline = false,
+            geoBlocked = true,
+        )
     } catch (e: UnknownHostException) {
         SyncResult.Error("Нет подключения к интернету", offline = true)
     } catch (e: SocketTimeoutException) {

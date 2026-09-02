@@ -12,6 +12,13 @@ import java.io.IOException
 class ApiException(message: String, val code: Int? = null) : IOException(message)
 
 /**
+ * Сервер расписания стоит за DDoS-Guard и отвечает 451 тем, кто пришёл
+ * не с российского адреса. Отличаем это от обычной сетевой ошибки, чтобы
+ * не писать пользователю «нет интернета», когда интернет как раз есть.
+ */
+class GeoBlockedException : IOException("Сервер расписания недоступен из этой страны")
+
+/**
  * Клиент публичного API расписания РУК.
  * Базовый адрес: https://api-schedule.ruc.su/api/v1
  */
@@ -55,6 +62,10 @@ class ScheduleApi(
 
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
+                if (response.code == 451) throw GeoBlockedException()
+                if (response.code == 403 && body.contains("ddos-guard", ignoreCase = true)) {
+                    throw GeoBlockedException()
+                }
                 if (!response.isSuccessful) {
                     throw ApiException("Сервер вернул ${response.code}", response.code)
                 }
