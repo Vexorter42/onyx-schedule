@@ -25,7 +25,7 @@ class ScheduleRepository(
 ) {
 
     /** Неделя считается свежей столько времени; дальше при открытии тихо перезапрашиваем. */
-    private val freshFor = 3.hours.inWholeMilliseconds
+    private val freshFor = 1.hours.inWholeMilliseconds
 
     /** Глубина хранения кэша: месяц назад и два месяца вперёд. */
     private val keepWeeksBack = 4L

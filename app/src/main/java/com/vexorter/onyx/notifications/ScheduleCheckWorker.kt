@@ -15,8 +15,11 @@ import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /**
- * Раз в сутки перекачивает текущую и следующую неделю и сравнивает их с тем,
- * что уже лежит в базе. Если расписание правили — показывает, что именно изменилось.
+ * Раз в час перекачивает текущую и следующую неделю и сравнивает их с тем,
+ * что уже лежит в базе. Держит кэш свежим и показывает, что именно изменилось,
+ * если расписание правили.
+ *
+ * Точность интервала обеспечивает система: в глубоком сне запуск может сдвинуться.
  */
 class ScheduleCheckWorker(
     context: Context,
@@ -65,18 +68,20 @@ class ScheduleCheckWorker(
         private const val NAME = "schedule-daily-check"
 
         fun enqueue(context: Context) {
-            val request = PeriodicWorkRequestBuilder<ScheduleCheckWorker>(1, TimeUnit.DAYS)
+            val request = PeriodicWorkRequestBuilder<ScheduleCheckWorker>(1, TimeUnit.HOURS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
                 )
-                .setInitialDelay(2, TimeUnit.HOURS)
+                .setInitialDelay(15, TimeUnit.MINUTES)
                 .build()
 
+            // UPDATE, а не KEEP: иначе у тех, кто уже поставил приложение,
+            // остался бы прежний суточный интервал.
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }

@@ -88,6 +88,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         initialValue = ScheduleUiState(),
     )
 
+    /** Первую неделю обновляет [refreshOnOpen], иначе на старте ушло бы два одинаковых запроса. */
+    private var handledFirstKey = false
+
     init {
         // Смена недели или группы: показываем кэш мгновенно, свежесть подтягиваем следом.
         viewModelScope.launch {
@@ -95,9 +98,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 if (!k.profile.isComplete) return@collectLatest
                 syncError.value = null
 
+                val isFirst = !handledFirstKey
+                handledFirstKey = true
+
                 val repo = container.scheduleRepository
                 val cached = repo.isCached(k.profile.groupGuid, k.weekStart)
-                if (!repo.isFresh(k.profile.groupGuid, k.weekStart)) {
+                if (!isFirst && !repo.isFresh(k.profile.groupGuid, k.weekStart)) {
                     if (!cached) refreshing.value = true
                     val result = repo.refreshWeek(k.profile.branchGuid, k.profile.groupGuid, k.weekStart)
                     syncError.value = result.errorOrNull
@@ -112,6 +118,24 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             container.networkMonitor.isOnline
                 .distinctUntilChanged()
                 .collect { online -> if (online && syncError.value != null) refresh() }
+        }
+    }
+
+    /**
+     * Вызывается каждый раз, когда приложение выходит на передний план.
+     * Обновляет всегда, не глядя на «свежесть»: открыл приложение — видишь актуальное.
+     * Молча, без индикатора: данные из базы уже на экране, дёргать спиннер незачем.
+     */
+    fun refreshOnOpen() {
+        viewModelScope.launch {
+            val profile = container.prefs.profile.first()
+            if (!profile.isComplete) return@launch
+            val result = container.scheduleRepository.refreshWeek(
+                branchGuid = profile.branchGuid,
+                groupGuid = profile.groupGuid,
+                weekStart = weekStart.value,
+            )
+            syncError.value = result.errorOrNull
         }
     }
 

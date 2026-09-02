@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vexorter.onyx.domain.DaySchedule
@@ -95,6 +97,10 @@ fun ScheduleScreen(
     updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // Каждый выход приложения на передний план — повод перезапросить неделю.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshOnOpen() }
+
     val update by updateViewModel.available.collectAsStateWithLifecycle()
     val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
     var showUpdate by rememberSaveable { mutableStateOf(false) }
