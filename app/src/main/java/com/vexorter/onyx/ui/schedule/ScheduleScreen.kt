@@ -1,6 +1,7 @@
 package com.vexorter.onyx.ui.schedule
 
 import android.content.Intent
+import android.widget.Toast
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -442,6 +443,8 @@ private fun shareImage(
     days: List<DaySchedule>,
     forEmployee: Boolean,
 ) {
+    // Молча глотать ошибку нельзя: пользователь жмёт кнопку и не понимает,
+    // почему ничего не произошло.
     runCatching {
         val file = ScheduleImage.render(context, title, subtitle, days, forEmployee)
         val uri = FileProvider.getUriForFile(
@@ -455,6 +458,8 @@ private fun shareImage(
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Поделиться расписанием"))
+    }.onFailure {
+        Toast.makeText(context, "Не удалось подготовить картинку", Toast.LENGTH_SHORT).show()
     }
 }
 
