@@ -24,7 +24,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Celebration
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Favorite
@@ -82,6 +85,7 @@ import com.vexorter.onyx.R
 import com.vexorter.onyx.appContainer
 import com.vexorter.onyx.data.prefs.ThemeMode
 import com.vexorter.onyx.domain.NotificationSettings
+import com.vexorter.onyx.domain.UpdateCheckResult
 import com.vexorter.onyx.data.repo.UpdateRepository
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.ui.update.UpdateDialog
@@ -112,6 +116,16 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     val sicretoUnlocked = container.prefs.sicretoUnlocked
 
+    val savedProfiles = container.profileRepository.saved
+
+    fun activate(profile: Profile) {
+        viewModelScope.launch { container.profileRepository.activate(profile) }
+    }
+
+    fun remove(profile: Profile) {
+        viewModelScope.launch { container.profileRepository.remove(profile) }
+    }
+
     fun unlockSicreto() {
         viewModelScope.launch { container.prefs.unlockSicreto() }
     }
@@ -131,7 +145,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             val profile = container.prefs.profile.first()
             val tomorrow = java.time.LocalDate.now().plusDays(1)
             val lessons = if (profile.isComplete) {
-                container.scheduleRepository.lessonsOn(profile.groupGuid, tomorrow)
+                container.scheduleRepository.lessonsOn(profile.ownerGuid, tomorrow)
             } else {
                 emptyList()
             }
@@ -161,7 +175,6 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 fun SettingsScreen(
     onBack: () -> Unit,
     onChangeBranch: () -> Unit,
-    onChangeGroup: () -> Unit,
     onOpenSicreto: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
     updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
@@ -183,6 +196,8 @@ fun SettingsScreen(
     var checking by remember { mutableStateOf(false) }
 
     val sicretoUnlocked by viewModel.sicretoUnlocked.collectAsStateWithLifecycle(initialValue = false)
+    val savedProfiles by viewModel.savedProfiles
+        .collectAsStateWithLifecycle(initialValue = emptyList())
     var iconTaps by remember { mutableIntStateOf(0) }
 
     // Счётчик сбрасывается, если перестали жать: иначе случайные тапы за день
@@ -262,28 +277,24 @@ fun SettingsScreen(
                 },
             )
 
-            SectionTitle("Профиль")
+            SectionTitle("Мои расписания")
 
             SettingsCard {
-                InfoRow("Филиал", profile.branchName.ifBlank { "не выбран" })
-                Divider()
-                InfoRow("Набор", profile.yearName.ifBlank { "не выбран" })
-                Divider()
-                InfoRow("Группа", profile.groupName.ifBlank { "не выбрана" })
-            }
-
-            SettingsCard {
+                savedProfiles.forEach { saved ->
+                    ProfileRow(
+                        profile = saved,
+                        isActive = saved.ownerGuid == profile.ownerGuid,
+                        // последний профиль удалять не даём: без него приложению нечего показывать
+                        canDelete = savedProfiles.size > 1,
+                        onClick = { viewModel.activate(saved) },
+                        onDelete = { viewModel.remove(saved) },
+                    )
+                    Divider()
+                }
                 ActionRow(
-                    icon = Icons.Rounded.Groups,
-                    title = "Сменить группу",
-                    subtitle = "Филиал и год набора останутся прежними",
-                    onClick = onChangeGroup,
-                )
-                Divider()
-                ActionRow(
-                    icon = Icons.Rounded.LocationCity,
-                    title = "Сменить филиал",
-                    subtitle = "Придётся заново выбрать год набора и группу",
+                    icon = Icons.Rounded.Add,
+                    title = "Добавить расписание",
+                    subtitle = "Ещё одна группа или преподаватель",
                     onClick = onChangeBranch,
                 )
             }
@@ -433,16 +444,22 @@ fun SettingsScreen(
                             showUpdate = true
                         } else {
                             checking = true
-                            updateViewModel.check(force = true) { ok ->
+                            updateViewModel.check(force = true) { result ->
                                 checking = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        if (!ok) {
-                                            "Не удалось проверить обновления"
-                                        } else {
-                                            "Установлена последняя версия"
-                                        }
-                                    )
+                                when (result) {
+                                    // Нашли — показываем, что изменилось,
+                                    // а не сообщаем «всё актуально».
+                                    is UpdateCheckResult.Found -> showUpdate = true
+
+                                    UpdateCheckResult.UpToDate -> scope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        snackbarHostState.showSnackbar("Установлена последняя версия")
+                                    }
+
+                                    UpdateCheckResult.Failed -> scope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        snackbarHostState.showSnackbar("Не удалось проверить обновления")
+                                    }
                                 }
                             }
                         }
@@ -603,6 +620,65 @@ private fun ExactAlarmWarning(onOpenSettings: () -> Unit) {
             )
             TextButton(onClick = onOpenSettings, modifier = Modifier.padding(top = 4.dp)) {
                 Text("Разрешить")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileRow(
+    profile: Profile,
+    isActive: Boolean,
+    canDelete: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (profile.isEmployee) Icons.Rounded.Person else Icons.Rounded.Groups,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = if (isActive) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp)
+        ) {
+            Text(
+                text = profile.ownerName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isActive) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            Text(
+                text = listOf(profile.branchName, profile.yearName)
+                    .filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (canDelete) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Убрать",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.outline,
+                )
             }
         }
     }

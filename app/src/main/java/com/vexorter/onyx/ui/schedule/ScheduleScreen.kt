@@ -32,14 +32,17 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.WifiOff
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.core.content.FileProvider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
@@ -137,6 +140,7 @@ fun ScheduleScreen(
 
     val palette = LocalLessonPalette.current
     val celebrationEnabled by viewModel.celebrationEnabled.collectAsStateWithLifecycle()
+    val countdownEnabled by viewModel.countdownEnabled.collectAsStateWithLifecycle()
     var celebrating by remember { mutableStateOf(false) }
 
     // Ждём ровно до конца идущей пары, а не проверяем каждые полминуты.
@@ -198,7 +202,7 @@ fun ScheduleScreen(
     Scaffold(
         topBar = {
             ScheduleHeader(
-                groupName = state.profile.groupName,
+                ownerName = state.profile.ownerName,
                 branchName = state.profile.branchName,
                 showTodayAction = !state.isCurrentWeek,
                 onToday = viewModel::showCurrentWeek,
@@ -213,7 +217,7 @@ fun ScheduleScreen(
                     shareText(
                         context,
                         buildShareText(
-                            groupName = state.profile.groupName,
+                            ownerName = state.profile.ownerName,
                             weekStart = state.weekStart,
                             days = visibleDays,
                         ),
@@ -221,7 +225,28 @@ fun ScheduleScreen(
                 },
                 onShareDay = {
                     shareDay?.let { day ->
-                        shareText(context, buildShareDayText(state.profile.groupName, day))
+                        shareText(context, buildShareDayText(state.profile.ownerName, day))
+                    }
+                },
+                onShareWeekImage = {
+                    shareImage(
+                        context = context,
+                        title = state.profile.ownerName,
+                        subtitle = WeekUtils.weekRangeTitle(state.weekStart),
+                        days = visibleDays,
+                        forEmployee = state.profile.isEmployee,
+                    )
+                },
+                onShareDayImage = {
+                    shareDay?.let { day ->
+                        shareImage(
+                            context = context,
+                            title = state.profile.ownerName,
+                            subtitle = "${WeekUtils.weekDayName(day.date)}, " +
+                                WeekUtils.dayAndMonth(day.date),
+                            days = listOf(day),
+                            forEmployee = state.profile.isEmployee,
+                        )
                     }
                 },
             )
@@ -239,6 +264,32 @@ fun ScheduleScreen(
                 onPrevious = viewModel::showPreviousWeek,
                 onNext = viewModel::showNextWeek,
             )
+
+            // Таймер тикает раз в секунду и только пока пара идёт — иначе это
+            // была бы секундная перерисовка всего экрана без всякой пользы.
+            if (countdownEnabled && ongoingLesson != null) {
+                val secondsLeft by produceState(0L, ongoingLesson, zone) {
+                    val end = WeekUtils.parseTime(ongoingLesson.timeEnd)
+                    if (end == null) {
+                        value = 0L
+                        return@produceState
+                    }
+                    val endsAt = ZonedDateTime.of(ongoingLesson.date, end, zone)
+                    while (true) {
+                        val left = Duration.between(ZonedDateTime.now(zone), endsAt).seconds
+                        value = left.coerceAtLeast(0L)
+                        if (left <= 0L) break
+                        delay(1_000)
+                    }
+                }
+                if (secondsLeft > 0) {
+                    CountdownCard(
+                        secondsLeft = secondsLeft,
+                        discipline = ongoingLesson.discipline,
+                        accent = lessonTypeColor(ongoingLesson.type),
+                    )
+                }
+            }
 
             if (visibleDays.isNotEmpty()) {
                 DayStrip(
@@ -311,7 +362,8 @@ fun ScheduleScreen(
                         ) { index ->
                             when (val row = rows[index]) {
                                 is ScheduleRow.Header -> DayHeader(row.day, row.isToday)
-                                is ScheduleRow.LessonItem -> LessonCard(row.lesson, row.ongoing)
+                                is ScheduleRow.LessonItem ->
+                                    LessonCard(row.lesson, row.ongoing, state.profile.isEmployee)
                                 is ScheduleRow.EmptyDay -> EmptyDayRow()
                                 ScheduleRow.Footer -> UpdatedFooter(state.week?.updatedAt ?: 0L)
                             }
@@ -339,11 +391,11 @@ fun ScheduleScreen(
 
 /** Текст недели для отправки в чат: без разметки, чтобы читалось где угодно. */
 private fun buildShareText(
-    groupName: String,
+    ownerName: String,
     weekStart: java.time.LocalDate,
     days: List<DaySchedule>,
 ): String = buildString {
-    append(groupName.ifBlank { "Расписание" })
+    append(ownerName.ifBlank { "Расписание" })
     append(" · ")
     appendLine(WeekUtils.weekRangeTitle(weekStart))
 
@@ -360,8 +412,8 @@ private fun buildShareText(
 }.trim()
 
 /** Один день — тот же формат, только без перечисления недели. */
-private fun buildShareDayText(groupName: String, day: DaySchedule): String = buildString {
-    append(groupName.ifBlank { "Расписание" })
+private fun buildShareDayText(ownerName: String, day: DaySchedule): String = buildString {
+    append(ownerName.ifBlank { "Расписание" })
     append(" · ")
     appendLine("${WeekUtils.weekDayName(day.date)}, ${WeekUtils.dayAndMonth(day.date)}")
     appendLine()
@@ -372,6 +424,39 @@ private fun buildShareDayText(groupName: String, day: DaySchedule): String = bui
         appendLine()
     }
 }.trim()
+
+@Composable
+private fun ShareMenuHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
+    )
+}
+
+private fun shareImage(
+    context: android.content.Context,
+    title: String,
+    subtitle: String,
+    days: List<DaySchedule>,
+    forEmployee: Boolean,
+) {
+    runCatching {
+        val file = ScheduleImage.render(context, title, subtitle, days, forEmployee)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Поделиться расписанием"))
+    }
+}
 
 private fun shareText(context: android.content.Context, text: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -425,7 +510,7 @@ private fun Lesson.ongoingAt(now: LocalDateTime): Ongoing? {
 
 @Composable
 private fun ScheduleHeader(
-    groupName: String,
+    ownerName: String,
     branchName: String,
     showTodayAction: Boolean,
     onToday: () -> Unit,
@@ -436,6 +521,8 @@ private fun ScheduleHeader(
     shareDayLabel: String?,
     onShareWeek: () -> Unit,
     onShareDay: () -> Unit,
+    onShareWeekImage: () -> Unit,
+    onShareDayImage: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -446,7 +533,7 @@ private fun ScheduleHeader(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                text = groupName.ifBlank { "Onyx" },
+                text = ownerName.ifBlank { "Onyx" },
                 style = MaterialTheme.typography.headlineSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -474,6 +561,7 @@ private fun ScheduleHeader(
                 var menuOpen by remember { mutableStateOf(false) }
                 RoundIconButton(Icons.Rounded.Share, "Поделиться расписанием") { menuOpen = true }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    ShareMenuHeader("Текстом")
                     DropdownMenuItem(
                         text = { Text("Всю неделю") },
                         onClick = {
@@ -487,6 +575,25 @@ private fun ScheduleHeader(
                             onClick = {
                                 menuOpen = false
                                 onShareDay()
+                            },
+                        )
+                    }
+
+                    HorizontalDivider()
+                    ShareMenuHeader("Картинкой")
+                    DropdownMenuItem(
+                        text = { Text("Всю неделю") },
+                        onClick = {
+                            menuOpen = false
+                            onShareWeekImage()
+                        },
+                    )
+                    if (shareDayLabel != null) {
+                        DropdownMenuItem(
+                            text = { Text(shareDayLabel) },
+                            onClick = {
+                                menuOpen = false
+                                onShareDayImage()
                             },
                         )
                     }
@@ -554,6 +661,44 @@ private fun WeekSwitcher(
             "Следующая неделя",
             onNext,
         )
+    }
+}
+
+/** Крупный обратный отсчёт до конца идущей пары. */
+@Composable
+private fun CountdownCard(secondsLeft: Long, discipline: String, accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "До конца пары",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = discipline,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "%d:%02d".format(secondsLeft / 60, secondsLeft % 60),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+            )
+        }
     }
 }
 
@@ -691,7 +836,7 @@ private fun EmptyDayRow() {
 }
 
 @Composable
-private fun LessonCard(lesson: Lesson, ongoing: Ongoing?) {
+private fun LessonCard(lesson: Lesson, ongoing: Ongoing?, forEmployee: Boolean) {
     val scheme = MaterialTheme.colorScheme
     val accent = lessonTypeColor(lesson.type)
     val isNow = ongoing != null
@@ -768,7 +913,13 @@ private fun LessonCard(lesson: Lesson, ongoing: Ongoing?) {
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
-                if (lesson.employee.isNotBlank()) {
+                // В расписании преподавателя его имя в каждой карточке бесполезно —
+                // там важно, какой группе идёт пара.
+                if (forEmployee) {
+                    if (lesson.group.isNotBlank()) {
+                        IconLine(Icons.Rounded.Groups, lesson.group)
+                    }
+                } else if (lesson.employee.isNotBlank()) {
                     IconLine(Icons.Rounded.Person, lesson.employee)
                 }
                 if (lesson.classroom.isNotBlank()) {

@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
+import com.vexorter.onyx.domain.ScheduleKind
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -40,18 +41,28 @@ class ScheduleApi(
             ListSerializer(GroupCategoryDto.serializer())
         )
 
+    suspend fun getEmployees(branchGuid: String): List<EmployeeDto> =
+        get("$baseUrl/get_employees/$branchGuid", ListSerializer(EmployeeDto.serializer()))
+
     /**
+     * Расписание группы либо преподавателя — на сервере это один метод,
+     * отличается только сегмент пути.
+     *
      * @param date дата в формате yyyy.MM.dd — вернётся неделя, в которую она попадает.
      *             Значение "no" означает текущую неделю.
      */
-    suspend fun getGroupSchedule(
+    suspend fun getSchedule(
+        kind: ScheduleKind,
         branchGuid: String,
-        groupGuid: String,
+        ownerGuid: String,
         date: String = CURRENT_WEEK,
-    ): ScheduleResponseDto = get(
-        "$baseUrl/get_schedule/group/$branchGuid/$groupGuid/$date",
-        ScheduleResponseDto.serializer()
-    )
+    ): ScheduleResponseDto {
+        val method = if (kind == ScheduleKind.EMPLOYEE) "employee" else "group"
+        return get(
+            "$baseUrl/get_schedule/$method/$branchGuid/$ownerGuid/$date",
+            ScheduleResponseDto.serializer()
+        )
+    }
 
     private suspend fun <T> get(url: String, deserializer: DeserializationStrategy<T>): T =
         withContext(Dispatchers.IO) {

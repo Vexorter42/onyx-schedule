@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 
 data class WeekStats(
     val lessons: Int = 0,
+    val remaining: Int = 0,
     val hours: Int = 0,
     val busiestDay: String? = null,
     val topSubject: String? = null,
@@ -81,19 +82,22 @@ class SicretoViewModel(private val container: AppContainer) : ViewModel() {
 
     val accent = container.prefs.accent
     val celebrate = container.prefs.celebrateLessonEnd
+    val amoled = container.prefs.amoled
+    val countdown = container.prefs.countdown
 
     val stats = container.prefs.profile
-        .map { it.branchGuid to it.groupGuid }
+        .map { it.branchGuid to it.ownerGuid }
         .distinctUntilChanged()
         .flatMapLatest { (branch, group) ->
             if (group.isBlank()) {
-                flowOf(null)
+                flowOf(branch to null)
             } else {
                 val zone = BranchTimeZones.zoneOf(branch)
                 container.scheduleRepository.observeWeek(group, WeekUtils.currentWeekStart(zone))
+                    .map { week -> branch to week }
             }
         }
-        .map { week -> week?.let(::buildStats) ?: WeekStats() }
+        .map { (branch, week) -> week?.let { buildStats(it, branch) } ?: WeekStats() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WeekStats())
 
     fun setAccent(value: AccentColor) {
@@ -104,7 +108,15 @@ class SicretoViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.prefs.setCelebrateLessonEnd(enabled) }
     }
 
-    private fun buildStats(week: WeekSchedule): WeekStats {
+    fun setAmoled(enabled: Boolean) {
+        viewModelScope.launch { container.prefs.setAmoled(enabled) }
+    }
+
+    fun setCountdown(enabled: Boolean) {
+        viewModelScope.launch { container.prefs.setCountdown(enabled) }
+    }
+
+    private fun buildStats(week: WeekSchedule, branchGuid: String): WeekStats {
         val all = week.days.flatMap { it.lessons }
         if (all.isEmpty()) return WeekStats()
 
@@ -120,8 +132,22 @@ class SicretoViewModel(private val container: AppContainer) : ViewModel() {
 
         val busiest = week.days.maxByOrNull { it.lessons.size }?.takeIf { it.lessons.isNotEmpty() }
 
+        // «Осталось» считаем во времени филиала — иначе у заочника цифра врёт.
+        val zone = BranchTimeZones.zoneOf(branchGuid)
+        val now = java.time.LocalDateTime.now(zone)
+        val remaining = all.count { lesson ->
+            val end = WeekUtils.parseTime(lesson.timeEnd)
+            when {
+                lesson.date.isAfter(now.toLocalDate()) -> true
+                lesson.date.isBefore(now.toLocalDate()) -> false
+                end == null -> false
+                else -> end.isAfter(now.toLocalTime())
+            }
+        }
+
         return WeekStats(
             lessons = all.size,
+            remaining = remaining,
             hours = Math.round(minutes / 60.0).toInt(),
             busiestDay = busiest?.let { "${WeekUtils.weekDayName(it.date)} — ${it.lessons.size}" },
             topSubject = all.groupingBy { it.discipline }.eachCount()
@@ -150,6 +176,8 @@ fun SicretoScreen(
     val accent by viewModel.accent.collectAsStateWithLifecycle(initialValue = AccentColor.MINT)
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val celebrate by viewModel.celebrate.collectAsStateWithLifecycle(initialValue = true)
+    val amoled by viewModel.amoled.collectAsStateWithLifecycle(initialValue = false)
+    val countdown by viewModel.countdown.collectAsStateWithLifecycle(initialValue = false)
     val context = LocalContext.current
     val palette = LocalLessonPalette.current
     var previewing by remember { mutableStateOf(false) }
@@ -202,6 +230,29 @@ fun SicretoScreen(
                     AccentSwatch(AccentColor.VIOLET, Violet, accent, viewModel::setAccent)
                     AccentSwatch(AccentColor.CORAL, Coral, accent, viewModel::setAccent)
                 }
+            }
+
+            SectionTitle("Экран")
+
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
+            ) {
+                SwitchRow(
+                    title = "Чистый чёрный",
+                    subtitle = "Вместо графитового фона — настоящий чёрный, на OLED экономит батарею",
+                    checked = amoled,
+                    onCheckedChange = viewModel::setAmoled,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SwitchRow(
+                    title = "Таймер до конца пары",
+                    subtitle = "Крупный обратный отсчёт над расписанием, пока пара идёт",
+                    checked = countdown,
+                    onCheckedChange = viewModel::setCountdown,
+                )
             }
 
             SectionTitle("Салют")
@@ -283,6 +334,8 @@ fun SicretoScreen(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         StatRow("Любимая аудитория", it)
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    StatRow("Осталось до конца недели", "${stats.remaining}")
                 }
             }
         }
@@ -332,6 +385,31 @@ private fun AccentSwatch(
                 tint = Color.Black.copy(alpha = 0.7f),
             )
         }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

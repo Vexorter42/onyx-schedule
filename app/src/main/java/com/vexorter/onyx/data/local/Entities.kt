@@ -34,6 +34,18 @@ data class GroupEntity(
     val sortIndex: Int,
 )
 
+@Entity(
+    tableName = "teachers",
+    indices = [Index(value = ["branchGuid"])]
+)
+data class TeacherEntity(
+    @PrimaryKey val guid: String,
+    val branchGuid: String,
+    val name: String,
+    val position: String,
+    val sortIndex: Int,
+)
+
 /**
  * Одна пара. Неделя целиком идентифицируется [weekKey] = "<guid группы>|<понедельник в ISO>".
  */
@@ -55,6 +67,8 @@ data class LessonEntity(
     val employee: String,
     val classroom: String,
     val subGroup: String,
+    /** Для расписания преподавателя это главное поле: кому он читает. */
+    val groupName: String,
 )
 
 /** Метка о том, что неделя выкачана целиком (нужна, чтобы отличать «пусто» от «не загружено»). */

@@ -42,11 +42,8 @@ class ScheduleCheckWorker(
         )
 
         for (week in weeks) {
-            val (result, weekChanges) = container.scheduleRepository.refreshWeekWithChanges(
-                branchGuid = profile.branchGuid,
-                groupGuid = profile.groupGuid,
-                weekStart = week,
-            )
+            val (result, weekChanges) =
+                container.scheduleRepository.refreshWeekWithChanges(profile, week)
             if (result is com.vexorter.onyx.domain.SyncResult.Error) {
                 return if (result.offline) Result.retry() else Result.success()
             }

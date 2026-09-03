@@ -66,7 +66,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         if (!k.profile.isComplete) {
             flowOf(null)
         } else {
-            container.scheduleRepository.observeWeek(k.profile.groupGuid, k.weekStart)
+            container.scheduleRepository.observeWeek(k.profile.ownerGuid, k.weekStart)
         }
     }
 
@@ -107,10 +107,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 handledFirstKey = true
 
                 val repo = container.scheduleRepository
-                val cached = repo.isCached(k.profile.groupGuid, k.weekStart)
-                if (!isFirst && !repo.isFresh(k.profile.groupGuid, k.weekStart)) {
+                val cached = repo.isCached(k.profile.ownerGuid, k.weekStart)
+                if (!isFirst && !repo.isFresh(k.profile.ownerGuid, k.weekStart)) {
                     if (!cached) refreshing.value = true
-                    val result = repo.refreshWeek(k.profile.branchGuid, k.profile.groupGuid, k.weekStart)
+                    val result = repo.refreshWeek(k.profile, k.weekStart)
                     syncError.value = result.errorOrNull
                     refreshing.value = false
                 }
@@ -131,15 +131,17 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      * Обновляет всегда, не глядя на «свежесть»: открыл приложение — видишь актуальное.
      * Молча, без индикатора: данные из базы уже на экране, дёргать спиннер незачем.
      */
+    val countdownEnabled: StateFlow<Boolean> = combine(
+        container.prefs.sicretoUnlocked,
+        container.prefs.countdown,
+    ) { unlocked, enabled -> unlocked && enabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun refreshOnOpen() {
         viewModelScope.launch {
             val profile = container.prefs.profile.first()
             if (!profile.isComplete) return@launch
-            val result = container.scheduleRepository.refreshWeek(
-                branchGuid = profile.branchGuid,
-                groupGuid = profile.groupGuid,
-                weekStart = weekStart.value,
-            )
+            val result = container.scheduleRepository.refreshWeek(profile, weekStart.value)
             syncError.value = result.errorOrNull
         }
     }
@@ -156,11 +158,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val profile = container.prefs.profile.first()
             if (!profile.isComplete) return@launch
             refreshing.value = true
-            val result = container.scheduleRepository.refreshWeek(
-                branchGuid = profile.branchGuid,
-                groupGuid = profile.groupGuid,
-                weekStart = weekStart.value,
-            )
+            val result = container.scheduleRepository.refreshWeek(profile, weekStart.value)
             syncError.value = result.errorOrNull
             refreshing.value = false
         }
@@ -189,11 +187,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private fun prefetchNeighbours(k: WeekKey) {
         viewModelScope.launch {
             listOf(k.weekStart.plusWeeks(1), k.weekStart.minusWeeks(1)).forEach { week ->
-                container.scheduleRepository.prefetchWeek(
-                    branchGuid = k.profile.branchGuid,
-                    groupGuid = k.profile.groupGuid,
-                    weekStart = week,
-                )
+                container.scheduleRepository.prefetchWeek(k.profile, week)
             }
         }
     }

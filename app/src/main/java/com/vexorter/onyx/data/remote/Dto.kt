@@ -40,6 +40,14 @@ data class GroupCategoryDto(
     @SerialName("single_element") val singleElement: Boolean = false,
 )
 
+/** Ответ get_employees — поля тут с заглавной буквы, в отличие от остальных методов. */
+@Serializable
+data class EmployeeDto(
+    @SerialName("GUID") val guid: String = "",
+    @SerialName("Name") val name: String = "",
+    @SerialName("Position") val position: String = "",
+)
+
 @Serializable
 data class LessonDto(
     @SerialName("Data") val date: String = "",

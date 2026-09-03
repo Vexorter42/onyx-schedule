@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.vexorter.onyx.data.remote.ReleaseDto
+import com.vexorter.onyx.data.prefs.UserPrefs
+import com.vexorter.onyx.domain.UpdateCheckResult
 import com.vexorter.onyx.domain.UpdateDownload
 import com.vexorter.onyx.domain.UpdateInfo
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,7 @@ class UpdateRepository(
     private val context: Context,
     private val client: OkHttpClient,
     private val json: Json,
+    private val prefs: UserPrefs,
 ) {
 
     private val _available = MutableStateFlow<UpdateInfo?>(null)
@@ -36,20 +39,25 @@ class UpdateRepository(
     private val _download = MutableStateFlow<UpdateDownload>(UpdateDownload.Idle)
     val download: StateFlow<UpdateDownload> = _download.asStateFlow()
 
-    private var lastCheckAt = 0L
-
     val currentVersion: String
         get() = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull().orEmpty().ifBlank { "?" }
 
     /**
-     * @return true, если проверка прошла успешно (даже когда обновления нет).
+     * Ограничитель применяется всегда, а не только когда обновление уже найдено:
+     * иначе каждый холодный запуск бил в API GitHub, где без токена
+     * 60 запросов в час на IP — на общей сети кампуса это быстро выбирается.
      */
-    suspend fun check(force: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+    suspend fun check(force: Boolean = false): UpdateCheckResult = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        if (!force && now - lastCheckAt < CHECK_INTERVAL_MS && _available.value != null) {
-            return@withContext true
+        if (!force && now - prefs.lastUpdateCheck() < CHECK_INTERVAL_MS) {
+            val known = _available.value
+            return@withContext if (known != null) {
+                UpdateCheckResult.Found(known)
+            } else {
+                UpdateCheckResult.UpToDate
+            }
         }
 
         val request = Request.Builder()
@@ -60,18 +68,22 @@ class UpdateRepository(
         try {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful || body.isBlank()) return@withContext false
+                if (!response.isSuccessful || body.isBlank()) {
+                    return@withContext UpdateCheckResult.Failed
+                }
 
                 val release = json.decodeFromString(ReleaseDto.serializer(), body)
+                prefs.setLastUpdateCheck(now)
+
                 if (release.draft || release.prerelease) {
                     _available.value = null
-                    return@withContext true
+                    return@withContext UpdateCheckResult.UpToDate
                 }
 
                 val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
                 val remoteVersion = release.tag.removePrefix("v").trim()
 
-                _available.value = if (apk != null && isNewer(remoteVersion, currentVersion)) {
+                val found = if (apk != null && isNewer(remoteVersion, currentVersion)) {
                     UpdateInfo(
                         version = remoteVersion,
                         title = release.name.ifBlank { "Onyx $remoteVersion" },
@@ -83,11 +95,12 @@ class UpdateRepository(
                 } else {
                     null
                 }
-                lastCheckAt = now
-                true
+                _available.value = found
+
+                if (found != null) UpdateCheckResult.Found(found) else UpdateCheckResult.UpToDate
             }
         } catch (e: Exception) {
-            false
+            UpdateCheckResult.Failed
         }
     }
 

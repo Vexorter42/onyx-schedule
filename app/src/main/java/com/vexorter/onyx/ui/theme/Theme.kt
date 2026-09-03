@@ -133,6 +133,7 @@ private val AccentColor.lightContainer: Color
 fun RucScheduleTheme(
     themeMode: ThemeMode,
     accent: AccentColor = AccentColor.MINT,
+    amoled: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -141,7 +142,18 @@ fun RucScheduleTheme(
         ThemeMode.DARK -> true
     }
 
-    val colorScheme = if (darkTheme) darkColors(accent) else lightColors(accent)
+    val colorScheme = when {
+        darkTheme && amoled -> darkColors(accent).copy(
+            background = Color.Black,
+            surface = Color.Black,
+            surfaceContainer = Color(0xFF0B0D0F),
+            surfaceContainerHigh = Color(0xFF141719),
+            surfaceContainerHighest = Color(0xFF141719),
+        )
+
+        darkTheme -> darkColors(accent)
+        else -> lightColors(accent)
+    }
 
     val lessonPalette = if (darkTheme) {
         LessonPalette(Mint, Amber, Violet, Coral, DarkOnSurfaceVariant)

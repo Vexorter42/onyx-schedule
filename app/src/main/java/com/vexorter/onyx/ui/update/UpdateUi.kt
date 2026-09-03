@@ -54,6 +54,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.vexorter.onyx.AppContainer
 import com.vexorter.onyx.appContainer
+import com.vexorter.onyx.domain.UpdateCheckResult
 import com.vexorter.onyx.domain.UpdateDownload
 import com.vexorter.onyx.domain.UpdateInfo
 import kotlinx.coroutines.launch
@@ -64,7 +65,7 @@ class UpdateViewModel(private val container: AppContainer) : ViewModel() {
     val download = container.updateRepository.download
     val currentVersion: String get() = container.updateRepository.currentVersion
 
-    fun check(force: Boolean = false, onResult: (Boolean) -> Unit = {}) {
+    fun check(force: Boolean = false, onResult: (UpdateCheckResult) -> Unit = {}) {
         viewModelScope.launch { onResult(container.updateRepository.check(force)) }
     }
 

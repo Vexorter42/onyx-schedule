@@ -46,6 +46,24 @@ interface CatalogDao {
         insertYears(items)
     }
 
+    @Query("SELECT * FROM teachers WHERE branchGuid = :branchGuid ORDER BY sortIndex")
+    fun observeTeachers(branchGuid: String): Flow<List<TeacherEntity>>
+
+    @Query("SELECT COUNT(*) FROM teachers WHERE branchGuid = :branchGuid")
+    suspend fun teacherCount(branchGuid: String): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTeachers(items: List<TeacherEntity>)
+
+    @Query("DELETE FROM teachers WHERE branchGuid = :branchGuid")
+    suspend fun clearTeachers(branchGuid: String)
+
+    @Transaction
+    suspend fun replaceTeachers(branchGuid: String, items: List<TeacherEntity>) {
+        clearTeachers(branchGuid)
+        insertTeachers(items)
+    }
+
     @Query("SELECT * FROM `groups` WHERE branchGuid = :branchGuid AND yearGuid = :yearGuid ORDER BY sortIndex")
     fun observeGroups(branchGuid: String, yearGuid: String): Flow<List<GroupEntity>>
 

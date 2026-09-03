@@ -43,7 +43,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     val today = LocalDate.now(zone)
                     notifier.showDaySummary(
                         date = today,
-                        lessons = container.scheduleRepository.lessonsOn(profile.groupGuid, today),
+                        lessons = container.scheduleRepository.lessonsOn(profile.ownerGuid, today),
                         isTomorrow = false,
                     )
                 }
@@ -52,7 +52,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     val tomorrow = LocalDate.now(zone).plusDays(1)
                     notifier.showDaySummary(
                         date = tomorrow,
-                        lessons = container.scheduleRepository.lessonsOn(profile.groupGuid, tomorrow),
+                        lessons = container.scheduleRepository.lessonsOn(profile.ownerGuid, tomorrow),
                         isTomorrow = true,
                     )
                 }
@@ -63,7 +63,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     val orderNum = intent.getIntExtra(EXTRA_ORDER, -1)
                     val minutes = intent.getIntExtra(EXTRA_MINUTES, settings.beforeLessonMinutes)
                     if (date != null) {
-                        container.scheduleRepository.lessonsOn(profile.groupGuid, date)
+                        container.scheduleRepository.lessonsOn(profile.ownerGuid, date)
                             .firstOrNull { it.orderNum == orderNum }
                             ?.let { notifier.showLessonReminder(it, minutes) }
                     }

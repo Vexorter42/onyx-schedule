@@ -46,7 +46,7 @@ class AlarmScheduler(
             scheduleDaily(REQUEST_EVENING, AlarmReceiver.ACTION_EVENING, settings.eveningAtMinutes, now, zone)
         }
         if (settings.beforeLesson) {
-            scheduleLessonReminders(settings, profile.groupGuid, now, zone)
+            scheduleLessonReminders(settings, profile.ownerGuid, now, zone)
         }
 
         // Подстраховка: раз в сутки после полуночи пересобираем план на новый день.
@@ -55,7 +55,7 @@ class AlarmScheduler(
 
     private suspend fun scheduleLessonReminders(
         settings: NotificationSettings,
-        groupGuid: String,
+        ownerGuid: String,
         now: LocalDateTime,
         zone: ZoneId,
     ) {
@@ -63,7 +63,7 @@ class AlarmScheduler(
         var slot = 0
 
         for (date in dates) {
-            val lessons = container.scheduleRepository.lessonsOn(groupGuid, date)
+            val lessons = container.scheduleRepository.lessonsOn(ownerGuid, date)
             for (lesson in lessons) {
                 if (slot >= MAX_LESSON_ALARMS) return
                 val start = WeekUtils.parseTime(lesson.timeStart) ?: continue

@@ -26,6 +26,8 @@ import com.vexorter.onyx.ui.schedule.ScheduleScreen
 import com.vexorter.onyx.ui.settings.SettingsScreen
 import com.vexorter.onyx.ui.setup.BranchPickerScreen
 import com.vexorter.onyx.ui.setup.GroupPickerScreen
+import com.vexorter.onyx.ui.setup.KindPickerScreen
+import com.vexorter.onyx.ui.setup.TeacherPickerScreen
 import com.vexorter.onyx.ui.setup.YearPickerScreen
 import com.vexorter.onyx.ui.theme.RucScheduleTheme
 
@@ -34,7 +36,9 @@ private object Routes {
     const val SETTINGS = "settings"
     const val SETUP_BRANCH = "setup/branch"
     const val SETUP_YEAR = "setup/year"
+    const val SETUP_KIND = "setup/kind"
     const val SETUP_GROUP = "setup/group"
+    const val SETUP_TEACHER = "setup/teacher"
     const val SICRETO = "sicreto"
 }
 
@@ -54,6 +58,7 @@ private fun RucScheduleApp() {
         .collectAsStateWithLifecycle(initialValue = ThemeMode.DARK)
     val accent by container.prefs.accent
         .collectAsStateWithLifecycle(initialValue = AccentColor.MINT)
+    val amoled by container.prefs.amoled.collectAsStateWithLifecycle(initialValue = false)
 
     // Пока профиль не прочитан из хранилища, держим заставку — иначе на долю секунды
     // мелькнёт экран первичной настройки у пользователя, который группу давно выбрал.
@@ -61,7 +66,7 @@ private fun RucScheduleApp() {
         container.prefs.profile.collect { value = it }
     }
 
-    RucScheduleTheme(themeMode = themeMode, accent = accent) {
+    RucScheduleTheme(themeMode = themeMode, accent = accent, amoled = amoled) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
@@ -91,7 +96,27 @@ private fun AppNavHost(startWithSetup: Boolean) {
                 } else {
                     null
                 },
-                onSelected = { navController.navigate(Routes.SETUP_YEAR) },
+                onSelected = { navController.navigate(Routes.SETUP_KIND) },
+            )
+        }
+
+        composable(Routes.SETUP_KIND) {
+            KindPickerScreen(
+                onBack = { navController.popBackStack() },
+                onGroup = { navController.navigate(Routes.SETUP_YEAR) },
+                onTeacher = { navController.navigate(Routes.SETUP_TEACHER) },
+            )
+        }
+
+        composable(Routes.SETUP_TEACHER) {
+            TeacherPickerScreen(
+                onBack = { navController.popBackStack() },
+                onSelected = {
+                    navController.navigate(Routes.SCHEDULE) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
             )
         }
 
@@ -124,7 +149,6 @@ private fun AppNavHost(startWithSetup: Boolean) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onChangeBranch = { navController.navigate(Routes.SETUP_BRANCH) },
-                onChangeGroup = { navController.navigate(Routes.SETUP_GROUP) },
                 onOpenSicreto = { navController.navigate(Routes.SICRETO) },
             )
         }

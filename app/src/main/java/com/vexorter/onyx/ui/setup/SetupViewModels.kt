@@ -11,6 +11,7 @@ import com.vexorter.onyx.appContainer
 import com.vexorter.onyx.domain.Branch
 import com.vexorter.onyx.domain.Group
 import com.vexorter.onyx.domain.SyncResult
+import com.vexorter.onyx.domain.Teacher
 import com.vexorter.onyx.domain.Year
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -82,7 +83,7 @@ class YearPickerViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(PickerUiState<Year>())
     val state = _state.asStateFlow()
 
-    val branchName = container.prefs.profile.map { it.branchName }
+    val branchName = container.prefs.draft.map { it.branchName }
 
     init {
         viewModelScope.launch {
@@ -133,13 +134,13 @@ class GroupPickerViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(PickerUiState<Group>())
     val state = _state.asStateFlow()
 
-    val subtitle = container.prefs.profile.map { profile ->
-        listOf(profile.branchName, profile.yearName).filter { it.isNotBlank() }.joinToString(" · ")
+    val subtitle = container.prefs.draft.map { draft ->
+        listOf(draft.branchName, draft.yearName).filter { it.isNotBlank() }.joinToString(" · ")
     }
 
     init {
         viewModelScope.launch {
-            container.prefs.profile
+            container.prefs.draft
                 .map { it.branchGuid to it.yearGuid }
                 .distinctUntilChanged()
                 .flatMapLatest { (branch, year) ->
@@ -154,14 +155,14 @@ class GroupPickerViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            val profile = container.prefs.profile.first()
-            if (profile.branchGuid.isBlank() || profile.yearGuid.isBlank()) {
+            val draft = container.prefs.draft.first()
+            if (draft.branchGuid.isBlank() || draft.yearGuid.isBlank()) {
                 _state.update { it.copy(isLoading = false) }
                 return@launch
             }
             if (!silent) _state.update { it.copy(isLoading = true, error = null) }
-            val hadCache = container.catalogRepository.hasGroups(profile.branchGuid, profile.yearGuid)
-            val result = container.catalogRepository.refreshGroups(profile.branchGuid, profile.yearGuid)
+            val hadCache = container.catalogRepository.hasGroups(draft.branchGuid, draft.yearGuid)
+            val result = container.catalogRepository.refreshGroups(draft.branchGuid, draft.yearGuid)
             when (result) {
                 is SyncResult.Success -> _state.update { it.copy(isLoading = false, error = null) }
                 is SyncResult.Error -> _state.update {
@@ -177,7 +178,7 @@ class GroupPickerViewModel(private val container: AppContainer) : ViewModel() {
 
     fun select(group: Group, onDone: () -> Unit) {
         viewModelScope.launch {
-            container.prefs.setGroup(group.guid, group.name)
+            container.profileRepository.selectGroup(group)
             onDone()
         }
     }
@@ -187,6 +188,70 @@ class GroupPickerViewModel(private val container: AppContainer) : ViewModel() {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
                 GroupPickerViewModel(app.appContainer)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class TeacherPickerViewModel(private val container: AppContainer) : ViewModel() {
+
+    private val _state = MutableStateFlow(PickerUiState<Teacher>())
+    val state = _state.asStateFlow()
+
+    val branchName = container.prefs.draft.map { it.branchName }
+
+    init {
+        viewModelScope.launch {
+            container.prefs.draft
+                .map { it.branchGuid }
+                .distinctUntilChanged()
+                .flatMapLatest { branch ->
+                    container.catalogRepository.observeTeachers(branch)
+                }
+                .collect { teachers ->
+                    _state.update {
+                        it.copy(items = teachers, isLoading = it.isLoading && teachers.isEmpty())
+                    }
+                }
+        }
+        refresh(silent = true)
+    }
+
+    fun refresh(silent: Boolean = false) {
+        viewModelScope.launch {
+            val branch = container.prefs.draft.first().branchGuid
+            if (branch.isBlank()) {
+                _state.update { it.copy(isLoading = false) }
+                return@launch
+            }
+            if (!silent) _state.update { it.copy(isLoading = true, error = null) }
+            val hadCache = container.catalogRepository.hasTeachers(branch)
+            when (val result = container.catalogRepository.refreshTeachers(branch)) {
+                is SyncResult.Success -> _state.update { it.copy(isLoading = false, error = null) }
+                is SyncResult.Error -> _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = if (hadCache) null else result.message,
+                        geoBlocked = result.geoBlocked,
+                    )
+                }
+            }
+        }
+    }
+
+    fun select(teacher: Teacher, onDone: () -> Unit) {
+        viewModelScope.launch {
+            container.profileRepository.selectTeacher(teacher)
+            onDone()
+        }
+    }
+
+    companion object {
+        val Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
+                TeacherPickerViewModel(app.appContainer)
             }
         }
     }

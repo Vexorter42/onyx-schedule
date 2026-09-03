@@ -10,6 +10,13 @@ data class UpdateInfo(
     val pageUrl: String,
 )
 
+/** Итог проверки: важно отличать «обновление есть» от «запрос прошёл». */
+sealed interface UpdateCheckResult {
+    data class Found(val info: UpdateInfo) : UpdateCheckResult
+    data object UpToDate : UpdateCheckResult
+    data object Failed : UpdateCheckResult
+}
+
 sealed interface UpdateDownload {
     data object Idle : UpdateDownload
     data class InProgress(val progress: Float) : UpdateDownload

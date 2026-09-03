@@ -6,6 +6,7 @@ import com.vexorter.onyx.data.local.WeekMetaEntity
 import com.vexorter.onyx.data.remote.ScheduleApi
 import com.vexorter.onyx.domain.DaySchedule
 import com.vexorter.onyx.domain.Lesson
+import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.domain.ScheduleChange
 import com.vexorter.onyx.domain.SyncResult
 import com.vexorter.onyx.domain.WeekSchedule
@@ -31,14 +32,14 @@ class ScheduleRepository(
     private val keepWeeksBack = 4L
     private val keepWeeksForward = 8L
 
-    private fun weekKey(groupGuid: String, weekStart: LocalDate) = "$groupGuid|$weekStart"
+    private fun weekKey(ownerGuid: String, weekStart: LocalDate) = "$ownerGuid|$weekStart"
 
     /**
      * @return null, если неделя ещё ни разу не выкачивалась (кэша нет),
      *         иначе — расписание из базы, пусть даже пустое.
      */
-    fun observeWeek(groupGuid: String, weekStart: LocalDate): Flow<WeekSchedule?> {
-        val key = weekKey(groupGuid, weekStart)
+    fun observeWeek(ownerGuid: String, weekStart: LocalDate): Flow<WeekSchedule?> {
+        val key = weekKey(ownerGuid, weekStart)
         return combine(
             dao.observeWeekMeta(key),
             dao.observeWeek(key),
@@ -51,23 +52,23 @@ class ScheduleRepository(
         }
     }
 
-    suspend fun isFresh(groupGuid: String, weekStart: LocalDate): Boolean {
-        val meta = dao.weekMeta(weekKey(groupGuid, weekStart)) ?: return false
+    suspend fun isFresh(ownerGuid: String, weekStart: LocalDate): Boolean {
+        val meta = dao.weekMeta(weekKey(ownerGuid, weekStart)) ?: return false
         return System.currentTimeMillis() - meta.updatedAt < freshFor
     }
 
-    suspend fun isCached(groupGuid: String, weekStart: LocalDate): Boolean =
-        dao.weekMeta(weekKey(groupGuid, weekStart)) != null
+    suspend fun isCached(ownerGuid: String, weekStart: LocalDate): Boolean =
+        dao.weekMeta(weekKey(ownerGuid, weekStart)) != null
 
     suspend fun refreshWeek(
-        branchGuid: String,
-        groupGuid: String,
+        profile: Profile,
         weekStart: LocalDate,
     ): SyncResult = runSync {
-        val key = weekKey(groupGuid, weekStart)
-        val response = api.getGroupSchedule(
-            branchGuid = branchGuid,
-            groupGuid = groupGuid,
+        val key = weekKey(profile.ownerGuid, weekStart)
+        val response = api.getSchedule(
+            kind = profile.kind,
+            branchGuid = profile.branchGuid,
+            ownerGuid = profile.ownerGuid,
             date = WeekUtils.toApiDate(weekStart),
         )
 
@@ -78,7 +79,7 @@ class ScheduleRepository(
                     ?: return@mapNotNull null
                 LessonEntity(
                     weekKey = key,
-                    ownerGuid = groupGuid,
+                    ownerGuid = profile.ownerGuid,
                     weekStart = weekStart.toString(),
                     date = date.toString(),
                     orderNum = dto.time.trim().toIntOrNull() ?: 0,
@@ -89,6 +90,7 @@ class ScheduleRepository(
                     employee = dto.employee.trim(),
                     classroom = dto.classroom.trim(),
                     subGroup = dto.subGroup.trim(),
+                    groupName = dto.group.trim(),
                 )
             }
         }
@@ -96,7 +98,7 @@ class ScheduleRepository(
         dao.replaceWeek(
             meta = WeekMetaEntity(
                 weekKey = key,
-                ownerGuid = groupGuid,
+                ownerGuid = profile.ownerGuid,
                 weekStart = weekStart.toString(),
                 updatedAt = System.currentTimeMillis(),
             ),
@@ -107,14 +109,14 @@ class ScheduleRepository(
     }
 
     /** Тихо подтягиваем соседнюю неделю, чтобы листание вперёд было мгновенным. */
-    suspend fun prefetchWeek(branchGuid: String, groupGuid: String, weekStart: LocalDate) {
-        if (isFresh(groupGuid, weekStart)) return
-        refreshWeek(branchGuid, groupGuid, weekStart)
+    suspend fun prefetchWeek(profile: Profile, weekStart: LocalDate) {
+        if (isFresh(profile.ownerGuid, weekStart)) return
+        refreshWeek(profile, weekStart)
     }
 
     /** Пары конкретного дня — нужны планировщику уведомлений. */
-    suspend fun lessonsOn(groupGuid: String, date: LocalDate): List<Lesson> =
-        dao.lessonsOn(groupGuid, date.toString()).mapNotNull { it.toDomain() }
+    suspend fun lessonsOn(ownerGuid: String, date: LocalDate): List<Lesson> =
+        dao.lessonsOn(ownerGuid, date.toString()).mapNotNull { it.toDomain() }
 
     /**
      * Обновляет неделю и попутно сообщает, что в ней изменилось по сравнению
@@ -122,15 +124,14 @@ class ScheduleRepository(
      * либо неделя выкачивается впервые (тогда «изменением» считать нечего).
      */
     suspend fun refreshWeekWithChanges(
-        branchGuid: String,
-        groupGuid: String,
+        profile: Profile,
         weekStart: LocalDate,
     ): Pair<SyncResult, List<ScheduleChange>> {
-        val key = weekKey(groupGuid, weekStart)
+        val key = weekKey(profile.ownerGuid, weekStart)
         val hadCache = dao.weekMeta(key) != null
         val before = if (hadCache) dao.weekLessons(key) else emptyList()
 
-        val result = refreshWeek(branchGuid, groupGuid, weekStart)
+        val result = refreshWeek(profile, weekStart)
         if (result !is SyncResult.Success || !hadCache) return result to emptyList()
 
         return result to diff(before, dao.weekLessons(key))

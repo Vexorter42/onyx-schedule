@@ -7,6 +7,7 @@ import com.vexorter.onyx.data.prefs.UserPrefs
 import com.vexorter.onyx.data.remote.NetworkModule
 import com.vexorter.onyx.data.remote.ScheduleApi
 import com.vexorter.onyx.data.repo.CatalogRepository
+import com.vexorter.onyx.data.repo.ProfileRepository
 import com.vexorter.onyx.data.repo.ScheduleRepository
 import com.vexorter.onyx.data.repo.UpdateRepository
 import com.vexorter.onyx.notifications.AlarmScheduler
@@ -31,7 +32,8 @@ class AppContainer(context: Context) {
     val networkMonitor by lazy { NetworkMonitor(appContext) }
     val catalogRepository by lazy { CatalogRepository(api, database.catalogDao()) }
     val scheduleRepository by lazy { ScheduleRepository(api, database.scheduleDao()) }
-    val updateRepository by lazy { UpdateRepository(appContext, httpClient, json) }
+    val profileRepository by lazy { ProfileRepository(prefs, database.savedProfileDao()) }
+    val updateRepository by lazy { UpdateRepository(appContext, httpClient, json, prefs) }
     val notifier by lazy { Notifier(appContext) }
     val alarmScheduler by lazy { AlarmScheduler(appContext, this) }
 }
@@ -49,7 +51,10 @@ class App : Application() {
 
         container.notifier.ensureChannels()
         ScheduleCheckWorker.enqueue(this)
-        scope.launch { container.alarmScheduler.rescheduleAll() }
+        scope.launch {
+            container.profileRepository.ensureMigrated()
+            container.alarmScheduler.rescheduleAll()
+        }
         // Проверяем обновления при каждом запуске: приложение раздаётся мимо Play,
         // само оно не обновится.
         scope.launch { container.updateRepository.check() }

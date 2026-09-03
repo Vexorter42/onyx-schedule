@@ -3,11 +3,13 @@ package com.vexorter.onyx.data.repo
 import com.vexorter.onyx.data.local.BranchEntity
 import com.vexorter.onyx.data.local.CatalogDao
 import com.vexorter.onyx.data.local.GroupEntity
+import com.vexorter.onyx.data.local.TeacherEntity
 import com.vexorter.onyx.data.local.YearEntity
 import com.vexorter.onyx.data.remote.ScheduleApi
 import com.vexorter.onyx.domain.Branch
 import com.vexorter.onyx.domain.Group
 import com.vexorter.onyx.domain.SyncResult
+import com.vexorter.onyx.domain.Teacher
 import com.vexorter.onyx.domain.Year
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +31,27 @@ class CatalogRepository(
 
     fun observeGroups(branchGuid: String, yearGuid: String): Flow<List<Group>> =
         dao.observeGroups(branchGuid, yearGuid).map { list -> list.map { it.toDomain() } }
+
+    fun observeTeachers(branchGuid: String): Flow<List<Teacher>> =
+        dao.observeTeachers(branchGuid).map { list -> list.map { it.toDomain() } }
+
+    suspend fun hasTeachers(branchGuid: String): Boolean = dao.teacherCount(branchGuid) > 0
+
+    suspend fun refreshTeachers(branchGuid: String): SyncResult = runSync {
+        val remote = api.getEmployees(branchGuid)
+        dao.replaceTeachers(
+            branchGuid,
+            remote.mapIndexed { index, dto ->
+                TeacherEntity(
+                    guid = dto.guid,
+                    branchGuid = branchGuid,
+                    name = dto.name.trim(),
+                    position = dto.position.trim(),
+                    sortIndex = index,
+                )
+            }
+        )
+    }
 
     suspend fun hasBranches(): Boolean = dao.branchCount() > 0
 

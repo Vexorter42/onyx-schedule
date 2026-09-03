@@ -12,14 +12,17 @@ import androidx.room.RoomDatabase
         GroupEntity::class,
         LessonEntity::class,
         WeekMetaEntity::class,
+        SavedProfileEntity::class,
+        TeacherEntity::class,
     ],
-    version = 1,
+    version = 4,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun catalogDao(): CatalogDao
     abstract fun scheduleDao(): ScheduleDao
+    abstract fun savedProfileDao(): SavedProfileDao
 
     companion object {
         fun build(context: Context): AppDatabase =

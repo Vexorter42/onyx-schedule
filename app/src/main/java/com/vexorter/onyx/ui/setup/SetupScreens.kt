@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -200,7 +205,7 @@ fun BranchPickerScreen(
 
     PickerScaffold(
         title = "Выберите филиал",
-        stepLabel = "Шаг 1 из 3",
+        stepLabel = "Начнём с филиала",
         subtitle = null,
         onBack = onBack,
         query = query,
@@ -235,7 +240,7 @@ fun YearPickerScreen(
 
     PickerScaffold(
         title = "Год набора",
-        stepLabel = "Шаг 2 из 3",
+        stepLabel = "Год набора",
         subtitle = branchName,
         onBack = onBack,
         query = query,
@@ -277,7 +282,7 @@ fun GroupPickerScreen(
 
     PickerScaffold(
         title = "Выберите группу",
-        stepLabel = "Шаг 3 из 3",
+        stepLabel = "Осталось выбрать группу",
         subtitle = subtitle,
         onBack = onBack,
         query = query,
@@ -297,6 +302,134 @@ fun GroupPickerScreen(
             }
             items(groups, key = { it.guid }) { group ->
                 PickerRow(title = group.name) { viewModel.select(group, onSelected) }
+            }
+        }
+    }
+}
+
+@Composable
+fun TeacherPickerScreen(
+    onBack: () -> Unit,
+    onSelected: () -> Unit,
+    viewModel: TeacherPickerViewModel = viewModel(factory = TeacherPickerViewModel.Factory),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val branchName by viewModel.branchName.collectAsStateWithLifecycle(initialValue = "")
+    var query by rememberSaveable { mutableStateOf("") }
+
+    val filtered = remember(state.items, query) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) {
+            state.items
+        } else {
+            state.items.filter {
+                it.name.lowercase().contains(q) || it.position.lowercase().contains(q)
+            }
+        }
+    }
+
+    PickerScaffold(
+        title = "Выберите преподавателя",
+        stepLabel = "Преподаватель",
+        subtitle = branchName,
+        onBack = onBack,
+        query = query,
+        onQueryChange = { query = it },
+        searchPlaceholder = "Поиск по фамилии",
+        isLoading = state.isLoading && state.items.isEmpty(),
+        error = state.error,
+        isEmpty = filtered.isEmpty() && !state.isLoading,
+        geoBlocked = state.geoBlocked,
+        onRetry = { viewModel.refresh() },
+    ) {
+        items(filtered, key = { it.guid }) { teacher ->
+            PickerRow(title = teacher.name) { viewModel.select(teacher, onSelected) }
+        }
+    }
+}
+
+/** Развилка мастера: чьё расписание смотрим. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KindPickerScreen(
+    onBack: () -> Unit,
+    onGroup: () -> Unit,
+    onTeacher: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Чьё расписание?")
+                        Text(
+                            text = "Группы или преподавателя",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            KindCard(
+                icon = Icons.Outlined.Groups,
+                title = "Группы",
+                subtitle = "Расписание учебной группы",
+                onClick = onGroup,
+            )
+            KindCard(
+                icon = Icons.Outlined.Person,
+                title = "Преподавателя",
+                subtitle = "Когда и где ведёт занятия",
+                onClick = onTeacher,
+            )
+        }
+    }
+}
+
+@Composable
+private fun KindCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(Modifier.padding(start = 16.dp)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

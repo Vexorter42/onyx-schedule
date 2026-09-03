@@ -23,8 +23,8 @@ android {
         applicationId = "com.vexorter.onyx"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.4.0"
+        versionCode = 7
+        versionName = "1.5.0"
     }
 
     signingConfigs {
