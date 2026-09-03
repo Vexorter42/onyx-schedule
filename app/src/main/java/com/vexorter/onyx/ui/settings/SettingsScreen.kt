@@ -110,10 +110,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun canScheduleExactAlarms(): Boolean = container.alarmScheduler.canScheduleExact()
 
-    val funUnlocked = container.prefs.funUnlocked
+    val sicretoUnlocked = container.prefs.sicretoUnlocked
 
-    fun unlockFun() {
-        viewModelScope.launch { container.prefs.unlockFun() }
+    fun unlockSicreto() {
+        viewModelScope.launch { container.prefs.unlockSicreto() }
     }
 
     /**
@@ -162,7 +162,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onChangeBranch: () -> Unit,
     onChangeGroup: () -> Unit,
-    onOpenFun: () -> Unit,
+    onOpenSicreto: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
     updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory),
 ) {
@@ -182,7 +182,7 @@ fun SettingsScreen(
     var showUpdate by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
 
-    val funUnlocked by viewModel.funUnlocked.collectAsStateWithLifecycle(initialValue = false)
+    val sicretoUnlocked by viewModel.sicretoUnlocked.collectAsStateWithLifecycle(initialValue = false)
     var iconTaps by remember { mutableIntStateOf(0) }
 
     // Счётчик сбрасывается, если перестали жать: иначе случайные тапы за день
@@ -241,16 +241,16 @@ fun SettingsScreen(
             AppHeader(
                 version = updateViewModel.currentVersion,
                 onIconClick = {
-                    if (funUnlocked) return@AppHeader
+                    if (sicretoUnlocked) return@AppHeader
                     iconTaps += 1
                     when {
                         iconTaps >= 9 -> {
-                            viewModel.unlockFun()
+                            viewModel.unlockSicreto()
                             iconTaps = 0
                             scope.launch {
                                 // Иначе обратный отсчёт висит в очереди и заслоняет итог.
                                 snackbarHostState.currentSnackbarData?.dismiss()
-                                snackbarHostState.showSnackbar("Режим «Веселье» открыт")
+                                snackbarHostState.showSnackbar("SICRETO открыт")
                             }
                         }
 
@@ -462,13 +462,13 @@ fun SettingsScreen(
                     subtitle = "Проект открыт на GitHub",
                     onClick = { openLink(UpdateRepository.REPO_URL) },
                 )
-                if (funUnlocked) {
+                if (sicretoUnlocked) {
                     Divider()
                     ActionRow(
                         icon = Icons.Rounded.Celebration,
-                        title = "Веселье",
+                        title = "SICRETO",
                         subtitle = "Скрытый раздел, который ты нашёл",
-                        onClick = onOpenFun,
+                        onClick = onOpenSicreto,
                     )
                 }
             }

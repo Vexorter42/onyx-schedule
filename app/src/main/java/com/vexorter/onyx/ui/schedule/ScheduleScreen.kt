@@ -40,6 +40,8 @@ import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -71,6 +73,8 @@ import com.vexorter.onyx.domain.Lesson
 import com.vexorter.onyx.ui.common.EmptyState
 import com.vexorter.onyx.ui.common.FullScreenLoader
 import com.vexorter.onyx.ui.common.OfflineBanner
+import com.vexorter.onyx.ui.sicreto.ConfettiOverlay
+import com.vexorter.onyx.ui.sicreto.playCelebrationSound
 import com.vexorter.onyx.ui.theme.LocalLessonPalette
 import com.vexorter.onyx.ui.update.UpdateBadgeButton
 import com.vexorter.onyx.ui.update.UpdateDialog
@@ -82,6 +86,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /** Идущая прямо сейчас пара: доля пройденного и сколько минут осталось. */
 private data class Ongoing(val progress: Float, val minutesLeft: Int)
@@ -130,6 +135,26 @@ fun ScheduleScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    val palette = LocalLessonPalette.current
+    val celebrationEnabled by viewModel.celebrationEnabled.collectAsStateWithLifecycle()
+    var celebrating by remember { mutableStateOf(false) }
+
+    // Ждём ровно до конца идущей пары, а не проверяем каждые полминуты.
+    val ongoingLesson = remember(rows) {
+        rows.filterIsInstance<ScheduleRow.LessonItem>().firstOrNull { it.ongoing != null }?.lesson
+    }
+    LaunchedEffect(ongoingLesson?.date, ongoingLesson?.orderNum, celebrationEnabled, zone) {
+        val lesson = ongoingLesson ?: return@LaunchedEffect
+        if (!celebrationEnabled) return@LaunchedEffect
+        val endTime = WeekUtils.parseTime(lesson.timeEnd) ?: return@LaunchedEffect
+        val endsAt = ZonedDateTime.of(lesson.date, endTime, zone)
+        val waitMillis = Duration.between(ZonedDateTime.now(zone), endsAt).toMillis()
+        if (waitMillis <= 0) return@LaunchedEffect
+        delay(waitMillis)
+        celebrating = true
+        playCelebrationSound(context)
+    }
+
     val visibleDay by remember(rows) {
         derivedStateOf {
             rows.take(listState.firstVisibleItemIndex + 1)
@@ -137,6 +162,14 @@ fun ScheduleScreen(
                 .lastOrNull()?.day?.date
         }
     }
+
+    // День, который сейчас перед глазами, — его и предлагаем отправить.
+    val shareDay = remember(visibleDays, visibleDay, today) {
+        visibleDays.firstOrNull { it.date == visibleDay && it.lessons.isNotEmpty() }
+            ?: visibleDays.firstOrNull { it.date == today && it.lessons.isNotEmpty() }
+            ?: visibleDays.firstOrNull { it.lessons.isNotEmpty() }
+    }
+
 
     // Открывая текущую неделю, показываем сразу сегодняшний день, а не понедельник.
     LaunchedEffect(state.weekStart, rows.size) {
@@ -161,6 +194,7 @@ fun ScheduleScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             ScheduleHeader(
@@ -172,18 +206,22 @@ fun ScheduleScreen(
                 hasUpdate = update != null,
                 onUpdateClick = { showUpdate = true },
                 canShare = (state.week?.lessonCount ?: 0) > 0,
-                onShare = {
-                    val text = buildShareText(
-                        groupName = state.profile.groupName,
-                        weekStart = state.weekStart,
-                        days = visibleDays,
+                shareDayLabel = shareDay?.let {
+                    "${WeekUtils.weekDayName(it.date)}, ${WeekUtils.dayAndMonth(it.date)}"
+                },
+                onShareWeek = {
+                    shareText(
+                        context,
+                        buildShareText(
+                            groupName = state.profile.groupName,
+                            weekStart = state.weekStart,
+                            days = visibleDays,
+                        ),
                     )
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, text)
-                    }
-                    runCatching {
-                        context.startActivity(Intent.createChooser(intent, "Поделиться расписанием"))
+                },
+                onShareDay = {
+                    shareDay?.let { day ->
+                        shareText(context, buildShareDayText(state.profile.groupName, day))
                     }
                 },
             )
@@ -283,6 +321,20 @@ fun ScheduleScreen(
             }
         }
     }
+
+        // Салют рисуется поверх всего и касаний не перехватывает.
+        ConfettiOverlay(
+            playing = celebrating,
+            colors = listOf(
+                palette.lecture,
+                palette.practice,
+                palette.lab,
+                palette.exam,
+                MaterialTheme.colorScheme.onSurface,
+            ),
+            onFinished = { celebrating = false },
+        )
+    }
 }
 
 /** Текст недели для отправки в чат: без разметки, чтобы читалось где угодно. */
@@ -306,6 +358,30 @@ private fun buildShareText(
         }
     }
 }.trim()
+
+/** Один день — тот же формат, только без перечисления недели. */
+private fun buildShareDayText(groupName: String, day: DaySchedule): String = buildString {
+    append(groupName.ifBlank { "Расписание" })
+    append(" · ")
+    appendLine("${WeekUtils.weekDayName(day.date)}, ${WeekUtils.dayAndMonth(day.date)}")
+    appendLine()
+    day.lessons.forEach { lesson ->
+        append("${lesson.timeStart} — ${lesson.timeEnd}  ${lesson.discipline}")
+        if (lesson.type.isNotBlank()) append(" (${lesson.type})")
+        if (lesson.classroom.isNotBlank()) append(", ауд. ${lesson.classroom}")
+        appendLine()
+    }
+}.trim()
+
+private fun shareText(context: android.content.Context, text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, "Поделиться расписанием"))
+    }
+}
 
 private fun rowKey(row: ScheduleRow, index: Int): String = when (row) {
     is ScheduleRow.Header -> "h_${row.day.date}"
@@ -357,7 +433,9 @@ private fun ScheduleHeader(
     hasUpdate: Boolean,
     onUpdateClick: () -> Unit,
     canShare: Boolean,
-    onShare: () -> Unit,
+    shareDayLabel: String?,
+    onShareWeek: () -> Unit,
+    onShareDay: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -392,7 +470,28 @@ private fun ScheduleHeader(
             Spacer(Modifier.width(8.dp))
         }
         if (canShare) {
-            RoundIconButton(Icons.Rounded.Share, "Поделиться неделей", onShare)
+            Box {
+                var menuOpen by remember { mutableStateOf(false) }
+                RoundIconButton(Icons.Rounded.Share, "Поделиться расписанием") { menuOpen = true }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Всю неделю") },
+                        onClick = {
+                            menuOpen = false
+                            onShareWeek()
+                        },
+                    )
+                    if (shareDayLabel != null) {
+                        DropdownMenuItem(
+                            text = { Text(shareDayLabel) },
+                            onClick = {
+                                menuOpen = false
+                                onShareDay()
+                            },
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.width(8.dp))
         }
         RoundIconButton(Icons.Rounded.Settings, "Настройки", onOpenSettings)

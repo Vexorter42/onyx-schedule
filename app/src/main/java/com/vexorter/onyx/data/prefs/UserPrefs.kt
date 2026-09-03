@@ -17,7 +17,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** Акцент интерфейса. Меняется в скрытом режиме «Веселье». */
+/** Акцент интерфейса. Меняется в скрытом разделе SICRETO. */
 enum class AccentColor { MINT, AMBER, VIOLET, CORAL }
 
 /** Профиль пользователя и настройки оформления. Выбирается один раз и живёт между запусками. */
@@ -42,6 +42,7 @@ class UserPrefs(private val context: Context) {
 
         val FUN_UNLOCKED = booleanPreferencesKey("fun_unlocked")
         val ACCENT = stringPreferencesKey("accent_color")
+        val CELEBRATE = booleanPreferencesKey("celebrate_lesson_end")
     }
 
     val profile: Flow<Profile> = context.dataStore.data.map { prefs ->
@@ -127,11 +128,11 @@ class UserPrefs(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[Keys.THEME] = mode.name }
     }
 
-    val funUnlocked: Flow<Boolean> = context.dataStore.data.map { prefs ->
+    val sicretoUnlocked: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[Keys.FUN_UNLOCKED] ?: false
     }
 
-    suspend fun unlockFun() {
+    suspend fun unlockSicreto() {
         context.dataStore.edit { prefs -> prefs[Keys.FUN_UNLOCKED] = true }
     }
 
@@ -142,6 +143,15 @@ class UserPrefs(private val context: Context) {
 
     suspend fun setAccent(accent: AccentColor) {
         context.dataStore.edit { prefs -> prefs[Keys.ACCENT] = accent.name }
+    }
+
+    /** Салют в конце пары. Живёт в скрытом разделе, поэтому по умолчанию включён. */
+    val celebrateLessonEnd: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.CELEBRATE] ?: true
+    }
+
+    suspend fun setCelebrateLessonEnd(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[Keys.CELEBRATE] = enabled }
     }
 
     suspend fun clearProfile() {

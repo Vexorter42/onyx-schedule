@@ -1,4 +1,4 @@
-package com.vexorter.onyx.ui.funmode
+package com.vexorter.onyx.ui.sicreto
 
 import android.app.Application
 import androidx.compose.foundation.background
@@ -27,13 +27,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -49,6 +54,7 @@ import com.vexorter.onyx.data.prefs.AccentColor
 import com.vexorter.onyx.domain.WeekSchedule
 import com.vexorter.onyx.ui.theme.Amber
 import com.vexorter.onyx.ui.theme.Coral
+import com.vexorter.onyx.ui.theme.LocalLessonPalette
 import com.vexorter.onyx.ui.theme.Mint
 import com.vexorter.onyx.ui.theme.Violet
 import com.vexorter.onyx.util.BranchTimeZones
@@ -71,9 +77,10 @@ data class WeekStats(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class FunViewModel(private val container: AppContainer) : ViewModel() {
+class SicretoViewModel(private val container: AppContainer) : ViewModel() {
 
     val accent = container.prefs.accent
+    val celebrate = container.prefs.celebrateLessonEnd
 
     val stats = container.prefs.profile
         .map { it.branchGuid to it.groupGuid }
@@ -91,6 +98,10 @@ class FunViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setAccent(value: AccentColor) {
         viewModelScope.launch { container.prefs.setAccent(value) }
+    }
+
+    fun setCelebrate(enabled: Boolean) {
+        viewModelScope.launch { container.prefs.setCelebrateLessonEnd(enabled) }
     }
 
     private fun buildStats(week: WeekSchedule): WeekStats {
@@ -124,7 +135,7 @@ class FunViewModel(private val container: AppContainer) : ViewModel() {
         val Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
-                FunViewModel(app.appContainer)
+                SicretoViewModel(app.appContainer)
             }
         }
     }
@@ -132,17 +143,22 @@ class FunViewModel(private val container: AppContainer) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FunScreen(
+fun SicretoScreen(
     onBack: () -> Unit,
-    viewModel: FunViewModel = viewModel(factory = FunViewModel.Factory),
+    viewModel: SicretoViewModel = viewModel(factory = SicretoViewModel.Factory),
 ) {
     val accent by viewModel.accent.collectAsStateWithLifecycle(initialValue = AccentColor.MINT)
     val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val celebrate by viewModel.celebrate.collectAsStateWithLifecycle(initialValue = true)
+    val context = LocalContext.current
+    val palette = LocalLessonPalette.current
+    var previewing by remember { mutableStateOf(false) }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Веселье") },
+                title = { Text("SICRETO") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Назад")
@@ -188,6 +204,59 @@ fun FunScreen(
                 }
             }
 
+            SectionTitle("Салют")
+
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Хлопушки в конце пары",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Если приложение открыто, когда пара кончилась — " +
+                                "конфетти с краёв экрана и звук",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = celebrate, onCheckedChange = viewModel::setCelebrate)
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            previewing = true
+                            playCelebrationSound(context)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Проверить салют",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Покажем прямо сейчас, как это выглядит и звучит",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             SectionTitle("Эта неделя в цифрах")
 
             Card(
@@ -217,6 +286,19 @@ fun FunScreen(
                 }
             }
         }
+    }
+
+        ConfettiOverlay(
+            playing = previewing,
+            colors = listOf(
+                palette.lecture,
+                palette.practice,
+                palette.lab,
+                palette.exam,
+                MaterialTheme.colorScheme.onSurface,
+            ),
+            onFinished = { previewing = false },
+        )
     }
 }
 

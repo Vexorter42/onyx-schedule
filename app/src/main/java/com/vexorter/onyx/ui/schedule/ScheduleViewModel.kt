@@ -144,6 +144,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** Салют показываем, только если скрытый раздел открыт и салют в нём не выключен. */
+    val celebrationEnabled: StateFlow<Boolean> = combine(
+        container.prefs.sicretoUnlocked,
+        container.prefs.celebrateLessonEnd,
+    ) { unlocked, enabled -> unlocked && enabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun refresh() {
         viewModelScope.launch {
             val profile = container.prefs.profile.first()

@@ -21,7 +21,7 @@ import com.vexorter.onyx.data.prefs.AccentColor
 import com.vexorter.onyx.data.prefs.ThemeMode
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.ui.common.FullScreenLoader
-import com.vexorter.onyx.ui.funmode.FunScreen
+import com.vexorter.onyx.ui.sicreto.SicretoScreen
 import com.vexorter.onyx.ui.schedule.ScheduleScreen
 import com.vexorter.onyx.ui.settings.SettingsScreen
 import com.vexorter.onyx.ui.setup.BranchPickerScreen
@@ -35,7 +35,7 @@ private object Routes {
     const val SETUP_BRANCH = "setup/branch"
     const val SETUP_YEAR = "setup/year"
     const val SETUP_GROUP = "setup/group"
-    const val FUN = "fun"
+    const val SICRETO = "sicreto"
 }
 
 class MainActivity : ComponentActivity() {
@@ -125,12 +125,12 @@ private fun AppNavHost(startWithSetup: Boolean) {
                 onBack = { navController.popBackStack() },
                 onChangeBranch = { navController.navigate(Routes.SETUP_BRANCH) },
                 onChangeGroup = { navController.navigate(Routes.SETUP_GROUP) },
-                onOpenFun = { navController.navigate(Routes.FUN) },
+                onOpenSicreto = { navController.navigate(Routes.SICRETO) },
             )
         }
 
-        composable(Routes.FUN) {
-            FunScreen(onBack = { navController.popBackStack() })
+        composable(Routes.SICRETO) {
+            SicretoScreen(onBack = { navController.popBackStack() })
         }
     }
 }
