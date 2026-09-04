@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.vexorter.onyx.AppContainer
 import com.vexorter.onyx.appContainer
+import com.vexorter.onyx.domain.DaySchedule
 import com.vexorter.onyx.domain.Profile
 import com.vexorter.onyx.domain.SyncResult
 import com.vexorter.onyx.domain.WeekSchedule
@@ -136,6 +137,17 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.prefs.countdown,
     ) { unlocked, enabled -> unlocked && enabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * Пары конкретного дня из базы — берём напрямую, а не из показанной недели:
+     * завтра может оказаться уже в следующей неделе (например, в субботу).
+     */
+    suspend fun dayFor(date: LocalDate): DaySchedule? {
+        val profile = container.prefs.profile.first()
+        if (!profile.isComplete) return null
+        val lessons = container.scheduleRepository.lessonsOn(profile.ownerGuid, date)
+        return if (lessons.isEmpty()) null else DaySchedule(date, lessons)
+    }
 
     fun refreshOnOpen() {
         viewModelScope.launch {

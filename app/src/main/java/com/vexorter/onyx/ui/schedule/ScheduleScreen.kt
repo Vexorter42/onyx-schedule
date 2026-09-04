@@ -168,6 +168,15 @@ fun ScheduleScreen(
         }
     }
 
+    // Завтра берём из базы: оно может лежать уже в следующей неделе.
+    val tomorrowDay by produceState<DaySchedule?>(null, state.profile.ownerGuid, today) {
+        value = if (state.profile.ownerGuid.isBlank()) {
+            null
+        } else {
+            viewModel.dayFor(today.plusDays(1))
+        }
+    }
+
     // День, который сейчас перед глазами, — его и предлагаем отправить.
     val shareDay = remember(visibleDays, visibleDay, today) {
         visibleDays.firstOrNull { it.date == visibleDay && it.lessons.isNotEmpty() }
@@ -210,10 +219,15 @@ fun ScheduleScreen(
                 onOpenSettings = onOpenSettings,
                 hasUpdate = update != null,
                 onUpdateClick = { showUpdate = true },
-                canShare = (state.week?.lessonCount ?: 0) > 0,
+                canShare = (state.week?.lessonCount ?: 0) > 0 || tomorrowDay != null,
                 shareDayLabel = shareDay?.let {
                     "${WeekUtils.weekDayName(it.date)}, ${WeekUtils.dayAndMonth(it.date)}"
                 },
+                // Показываем «завтра» отдельным пунктом, если это не тот же день,
+                // что уже предложен, и пары там вообще есть.
+                shareTomorrowLabel = tomorrowDay
+                    ?.takeIf { it.date != shareDay?.date }
+                    ?.let { "Завтра, ${WeekUtils.dayAndMonth(it.date)}" },
                 onShareWeek = {
                     shareText(
                         context,
@@ -244,6 +258,23 @@ fun ScheduleScreen(
                             context = context,
                             title = state.profile.ownerName,
                             subtitle = "${WeekUtils.weekDayName(day.date)}, " +
+                                WeekUtils.dayAndMonth(day.date),
+                            days = listOf(day),
+                            forEmployee = state.profile.isEmployee,
+                        )
+                    }
+                },
+                onShareTomorrow = {
+                    tomorrowDay?.let { day ->
+                        shareText(context, buildShareDayText(state.profile.ownerName, day))
+                    }
+                },
+                onShareTomorrowImage = {
+                    tomorrowDay?.let { day ->
+                        shareImage(
+                            context = context,
+                            title = state.profile.ownerName,
+                            subtitle = "Завтра, ${WeekUtils.weekDayName(day.date)}, " +
                                 WeekUtils.dayAndMonth(day.date),
                             days = listOf(day),
                             forEmployee = state.profile.isEmployee,
@@ -524,10 +555,13 @@ private fun ScheduleHeader(
     onUpdateClick: () -> Unit,
     canShare: Boolean,
     shareDayLabel: String?,
+    shareTomorrowLabel: String?,
     onShareWeek: () -> Unit,
     onShareDay: () -> Unit,
     onShareWeekImage: () -> Unit,
     onShareDayImage: () -> Unit,
+    onShareTomorrow: () -> Unit,
+    onShareTomorrowImage: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -583,6 +617,15 @@ private fun ScheduleHeader(
                             },
                         )
                     }
+                    if (shareTomorrowLabel != null) {
+                        DropdownMenuItem(
+                            text = { Text(shareTomorrowLabel) },
+                            onClick = {
+                                menuOpen = false
+                                onShareTomorrow()
+                            },
+                        )
+                    }
 
                     HorizontalDivider()
                     ShareMenuHeader("Картинкой")
@@ -599,6 +642,15 @@ private fun ScheduleHeader(
                             onClick = {
                                 menuOpen = false
                                 onShareDayImage()
+                            },
+                        )
+                    }
+                    if (shareTomorrowLabel != null) {
+                        DropdownMenuItem(
+                            text = { Text(shareTomorrowLabel) },
+                            onClick = {
+                                menuOpen = false
+                                onShareTomorrowImage()
                             },
                         )
                     }
