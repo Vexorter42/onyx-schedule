@@ -55,6 +55,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -103,6 +104,13 @@ private sealed interface ScheduleRow {
     data object Footer : ScheduleRow
 }
 
+private fun ScheduleRow.dateOrNull(): LocalDate? = when (this) {
+    is ScheduleRow.Header -> day.date
+    is ScheduleRow.LessonItem -> lesson.date
+    is ScheduleRow.EmptyDay -> date
+    ScheduleRow.Footer -> null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(
@@ -112,8 +120,13 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Каждый выход приложения на передний план — повод перезапросить неделю.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshOnOpen() }
+    // Каждый выход приложения на передний план — повод перезапросить неделю
+    // и заново взглянуть на часы: за ночь в фоне могли наступить новые сутки.
+    var resumeTick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshOnOpen()
+        resumeTick++
+    }
 
     val update by updateViewModel.available.collectAsStateWithLifecycle()
     val downloadState by updateViewModel.download.collectAsStateWithLifecycle()
@@ -122,7 +135,7 @@ fun ScheduleScreen(
     // «Сейчас» считаем во времени филиала: у заочника из другого пояса иначе
     // подсветилась бы не та пара. Раз в полминуты обновляем, чтобы не устаревало.
     val zone = state.zone
-    val now by produceState(initialValue = LocalDateTime.now(zone), zone) {
+    val now by produceState(initialValue = LocalDateTime.now(zone), zone, resumeTick) {
         while (true) {
             value = LocalDateTime.now(zone)
             delay(30_000)
@@ -160,11 +173,21 @@ fun ScheduleScreen(
         playCelebrationSound(context)
     }
 
+    // Открытый день — тот, что занимает большую часть экрана. По первому видимому
+    // элементу считать нельзя: в конце списка прокрутка упирается в низ, сверху
+    // продолжает висеть хвост предыдущего дня — и он объявлялся бы «открытым»,
+    // хотя смотрим мы уже на следующий.
     val visibleDay by remember(rows) {
         derivedStateOf {
-            rows.take(listState.firstVisibleItemIndex + 1)
-                .filterIsInstance<ScheduleRow.Header>()
-                .lastOrNull()?.day?.date
+            val info = listState.layoutInfo
+            val weights = HashMap<LocalDate, Int>()
+            info.visibleItemsInfo.forEach { item ->
+                val date = rows.getOrNull(item.index)?.dateOrNull() ?: return@forEach
+                val height = minOf(item.offset + item.size, info.viewportEndOffset) -
+                    maxOf(item.offset, info.viewportStartOffset)
+                if (height > 0) weights[date] = (weights[date] ?: 0) + height
+            }
+            weights.maxByOrNull { it.value }?.key
         }
     }
 
@@ -185,11 +208,20 @@ fun ScheduleScreen(
     }
 
 
-    // Открывая текущую неделю, показываем сразу сегодняшний день, а не понедельник.
-    LaunchedEffect(state.weekStart, rows.size) {
-        if (rows.isEmpty()) return@LaunchedEffect
-        val index = rows.indexOfFirst { it is ScheduleRow.Header && it.day.date == today }
-        if (index > 0) listState.scrollToItem(index)
+    // Открывая текущую неделю, показываем сразу сегодняшний день, а не понедельник;
+    // на любой другой неделе — её начало.
+    //
+    // Ключ — сам номер строки: приложение живёт в фоне сутками и неделями, и когда за
+    // это время наступает новый день или новая неделя, номер меняется, а значит эффект
+    // повторится. По размеру списка ключеваться нельзя: он не меняется при смене суток,
+    // и список молча оставался бы на вчерашнем дне.
+    val hasRows = rows.isNotEmpty()
+    val todayIndex = rows.indexOfFirst { it is ScheduleRow.Header && it.day.date == today }
+    LaunchedEffect(state.weekStart, todayIndex, hasRows) {
+        if (!hasRows) return@LaunchedEffect
+        // Прокрутку нельзя пропускать даже при нуле: позиция могла остаться от
+        // прошлой недели, и мы оказались бы посреди чужого дня.
+        listState.scrollToItem(todayIndex.coerceAtLeast(0))
     }
 
     update?.let { info ->

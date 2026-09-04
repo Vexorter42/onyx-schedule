@@ -149,10 +149,26 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         return if (lessons.isEmpty()) null else DaySchedule(date, lessons)
     }
 
+    /**
+     * Неделя, которая считалась текущей в момент последнего открытия. Нужна, чтобы
+     * отличить «пользователь сам ушёл листать прошлую неделю» от «наступил
+     * понедельник, пока приложение висело в фоне».
+     */
+    private var currentWeekWhenOpened = WeekUtils.currentWeekStart()
+
     fun refreshOnOpen() {
         viewModelScope.launch {
             val profile = container.prefs.profile.first()
             if (!profile.isComplete) return@launch
+
+            // Приложение может не перезапускаться неделями. Если текущая неделя
+            // сменилась, а мы всё ещё стоим на прежней — переезжаем на новую.
+            val current = WeekUtils.currentWeekStart(BranchTimeZones.zoneOf(profile.branchGuid))
+            if (current != currentWeekWhenOpened) {
+                if (weekStart.value == currentWeekWhenOpened) weekStart.value = current
+                currentWeekWhenOpened = current
+            }
+
             val result = container.scheduleRepository.refreshWeek(profile, weekStart.value)
             syncError.value = result.errorOrNull
         }
